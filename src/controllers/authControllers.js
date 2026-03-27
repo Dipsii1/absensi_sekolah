@@ -2,16 +2,41 @@ const prisma = require("../config/prisma");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
+let _roleCache = null;
+
+const getRoleCache = async () => {
+    if (_roleCache) return _roleCache;
+
+    const roles = await prisma.role.findMany();
+
+    if (!roles.length) {
+        throw new Error("Tabel roles kosong. Pastikan data master roles sudah diisi.");
+    }
+
+    // Build map role
+    _roleCache = roles.reduce((acc, role) => {
+        acc[role.name.toUpperCase()] = { id: role.id, name: role.name };
+        return acc;
+    }, {});
+
+    return _roleCache;
+};
+
+// Invalidate cache
+const invalidateRoleCache = () => {
+    _roleCache = null;
+};
+
 // Register
 const register = async (req, res) => {
     try {
         const { email, password, role, guru_id } = req.body;
 
-        // Validasi input
+        // Validasi input wajib
         if (!email || !password || !role) {
             return res.status(400).json({
                 success: false,
-                message: "Email, password, dan role wajib diisi"
+                message: "Email, password, dan role wajib diisi",
             });
         }
 
@@ -20,15 +45,7 @@ const register = async (req, res) => {
         if (!emailRegex.test(email)) {
             return res.status(400).json({
                 success: false,
-                message: "Format email tidak valid"
-            });
-        }
-
-        // Validasi role
-        if (!['ADMIN', 'GURU'].includes(role)) {
-            return res.status(400).json({
-                success: false,
-                message: "Role harus ADMIN atau GURU"
+                message: "Format email tidak valid",
             });
         }
 
@@ -36,155 +53,152 @@ const register = async (req, res) => {
         if (password.length < 6) {
             return res.status(400).json({
                 success: false,
-                message: "Password minimal 6 karakter"
+                message: "Password minimal 6 karakter",
             });
         }
 
-        // Cek duplikasi email
-        const existingEmail = await prisma.user.findFirst({
-            where: {
-                email,
-                deleted_at: null
-            }
-        });
+        // Load role cache dari DB (lazy, sekali aja)
+        const roleCache = await getRoleCache();
+        const roleKey = role.toUpperCase();
+        const validRoles = Object.keys(roleCache);
 
+        if (!roleCache[roleKey]) {
+            return res.status(400).json({
+                success: false,
+                message: `Role tidak valid. Pilihan yang tersedia: ${validRoles.join(", ")}`,
+            });
+        }
+
+        const roleData = roleCache[roleKey]; // { id, name }
+
+        // Cek duplikasi email (user aktif)
+        const existingEmail = await prisma.user.findFirst({
+            where: { email, deleted_at: null },
+        });
         if (existingEmail) {
             return res.status(409).json({
                 success: false,
-                message: "Email sudah terdaftar"
+                message: "Email sudah terdaftar",
             });
         }
 
-        // Validasi guru_id jika role GURU
-        if (role === 'GURU') {
+        // Validasi guru_id kalau role GURU
+        if (roleKey === "GURU") {
             if (!guru_id) {
                 return res.status(400).json({
                     success: false,
-                    message: "Guru ID wajib diisi untuk role GURU"
+                    message: "Guru ID wajib diisi untuk role GURU",
                 });
             }
-
-            // Validasi guru_id harus angka
             if (isNaN(parseInt(guru_id))) {
                 return res.status(400).json({
                     success: false,
-                    message: "Guru ID harus berupa angka"
+                    message: "Guru ID harus berupa angka",
                 });
             }
 
-            // Validasi guru exists
             const guruExists = await prisma.guru.findFirst({
-                where: {
-                    id: parseInt(guru_id),
-                    deleted_at: null
-                }
+                where: { id: parseInt(guru_id), deleted_at: null },
             });
-
             if (!guruExists) {
                 return res.status(404).json({
                     success: false,
-                    message: "Guru tidak ditemukan"
+                    message: "Guru tidak ditemukan",
                 });
             }
 
-            // Cek apakah guru sudah memiliki user
             const guruHasUser = await prisma.user.findFirst({
-                where: {
-                    guru_id: parseInt(guru_id),
-                    deleted_at: null
-                }
+                where: { guru_id: parseInt(guru_id), deleted_at: null },
             });
-
             if (guruHasUser) {
                 return res.status(409).json({
                     success: false,
-                    message: "Guru sudah memiliki akun user"
+                    message: "Guru sudah memiliki akun user",
                 });
             }
         }
 
-        // Cek apakah sebelumnya sudah ada akun yang dihapus dengan email sama
+        // Shared payload untuk create / restore
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const userPayload = {
+            password: hashedPassword,
+            role_id: roleData.id,
+            guru_id: roleKey === "GURU" && guru_id ? parseInt(guru_id, 10) : null,
+        };
+
+        // Cek soft-deleted user dengan email sama → restore
         const deletedUser = await prisma.user.findFirst({
-            where: {
-                email,
-                deleted_at: {
-                    not: null
-                }
-            }
+            where: { email, deleted_at: { not: null } },
         });
 
         if (deletedUser) {
-            // Restore akun tersebut
             const restoredUser = await prisma.user.update({
-                where: {
-                    id: deletedUser.id
-                },
-                data: {
-                    deleted_at: null,
-                    password: await bcrypt.hash(password, 10),
-                    role,
-                    guru_id: role === 'GURU' && guru_id ? parseInt(guru_id, 10) : null
-                },
+                where: { id: deletedUser.id },
+                data: { deleted_at: null, ...userPayload },
                 select: {
                     id: true,
                     email: true,
-                    role: true,
+                    role_id: true,
+                    role: {
+                        select: {
+                            id: true,
+                            name: true,
+                        }
+                    },
                     guru_id: true,
                     guru: {
                         select: {
                             id: true,
                             NIP: true,
                             nama: true,
-                            nomor_telepon: true
+                            nomor_telepon: true,
                         }
                     },
                     created_at: true,
                     updated_at: true,
-                    deleted_at: true
+                    deleted_at: true,
                 }
             });
 
             return res.status(200).json({
                 success: true,
                 message: "Berhasil mengembalikan user yang telah dihapus",
-                data: restoredUser
+                data: restoredUser,
             });
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
         // Buat user baru
         const newUser = await prisma.user.create({
-            data: {
-                email,
-                password: hashedPassword,
-                role,
-                guru_id: role === 'GURU' && guru_id ? parseInt(guru_id, 10) : null
-            },
+            data: { email, ...userPayload },
             select: {
                 id: true,
                 email: true,
-                role: true,
+                role_id: true,
+                role: {
+                    select: {
+                        id: true,
+                        name: true,
+                    }
+                },
                 guru_id: true,
                 guru: {
                     select: {
                         id: true,
                         NIP: true,
                         nama: true,
-                        nomor_telepon: true
+                        nomor_telepon: true,
                     }
                 },
                 created_at: true,
                 updated_at: true,
-                deleted_at: true
+                deleted_at: true,
             }
         });
 
         return res.status(201).json({
             success: true,
             message: "Registrasi berhasil",
-            data: newUser
+            data: newUser,
         });
 
     } catch (error) {
@@ -192,7 +206,7 @@ const register = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
-            error: error.message
+            error: error.message,
         });
     }
 };
@@ -202,71 +216,69 @@ const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Validasi input
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
-                message: "Email dan password wajib diisi"
+                message: "Email dan password wajib diisi",
             });
         }
 
-        // Cari user berdasarkan email (yang tidak dihapus)
         const user = await prisma.user.findFirst({
-            where: {
-                email,
-                deleted_at: null
-            },
+            where: { email, deleted_at: null },
             include: {
+                role: {
+                    select: {
+                        id: true,
+                        name: true,
+                    }
+                },
                 guru: {
                     select: {
                         id: true,
                         NIP: true,
                         nama: true,
-                        nomor_telepon: true
+                        nomor_telepon: true,
                     }
-                }
-            }
+                },
+            },
         });
 
         if (!user) {
             return res.status(401).json({
                 success: false,
-                message: "Email atau password salah"
+                message: "Email atau password salah",
             });
         }
 
-        // Verifikasi password
         const isPasswordValid = await bcrypt.compare(password, user.password);
-
         if (!isPasswordValid) {
             return res.status(401).json({
                 success: false,
-                message: "Email atau password salah"
+                message: "Email atau password salah",
             });
         }
 
-        // Buat access token
+        // JWT payload bawa role_id (int) + role_name (string) sekaligus
+        // → middleware bisa cek salah satu atau keduanya
         const accessToken = jwt.sign(
             {
                 id: user.id,
                 email: user.email,
-                role: user.role,
-                guru_id: user.guru_id
+                role_id: user.role_id,
+                role_name: user.role?.name?.toUpperCase() ?? null,
+                guru_id: user.guru_id,
             },
             process.env.JWT_SECRET,
-            { expiresIn: '24h' } // 24 jam
+            { expiresIn: "24h" }
         );
 
-        // Response (tanpa password)
+        // Hapus password dari response
         const { password: _, ...userData } = user;
 
         return res.status(200).json({
             success: true,
             message: "Login berhasil",
-            data: {
-                user: userData,
-                accessToken
-            }
+            data: { user: userData, accessToken },
         });
 
     } catch (error) {
@@ -274,7 +286,7 @@ const login = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
-            error: error.message
+            error: error.message,
         });
     }
 };
@@ -284,7 +296,6 @@ const logout = async (req, res) => {
     try {
         // Karena menggunakan stateless JWT, logout dilakukan di client side
         // Client menghapus token dari storage mereka
-        
         return res.status(200).json({
             success: true,
             message: "Logout berhasil"
@@ -295,7 +306,7 @@ const logout = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
-            error: error.message
+            error: error.message,
         });
     }
 };
@@ -305,31 +316,34 @@ const me = async (req, res) => {
     try {
         // req.user sudah di-set dari middleware verifyToken
         const user = await prisma.user.findFirst({
-            where: {
-                id: req.user.id,
-                deleted_at: null
-            },
+            where: { id: req.user.id, deleted_at: null },
             select: {
                 id: true,
                 email: true,
-                role: true,
+                role_id: true,
+                role: {
+                    select: {
+                        id: true,
+                        name: true,
+                    }
+                },
                 guru_id: true,
                 guru: {
                     select: {
                         id: true,
                         NIP: true,
                         nama: true,
-                        nomor_telepon: true
+                        nomor_telepon: true,
                     }
                 },
                 created_at: true,
-            }
+            },
         });
 
         if (!user) {
             return res.status(404).json({
                 success: false,
-                message: "User tidak ditemukan"
+                message: "User tidak ditemukan",
             });
         }
 
@@ -343,7 +357,7 @@ const me = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
-            error: error.message
+            error: error.message,
         });
     }
 };
@@ -352,5 +366,6 @@ module.exports = {
     register,
     login,
     logout,
-    me
+    me,
+    invalidateRoleCache, // export kalau sewaktu-waktu butuh refresh cache
 };

@@ -1,6 +1,32 @@
 const prisma = require("../config/prisma");
 const bcrypt = require("bcrypt");
 
+
+let _roleCache = null;
+
+const getRoleCache = async () => {
+    if (_roleCache) return _roleCache;
+
+    const roles = await prisma.role.findMany();
+
+    if (!roles.length) {
+        throw new Error("Tabel roles kosong. Pastikan data master roles sudah diisi.");
+    }
+
+    // Build map role
+    _roleCache = roles.reduce((acc, role) => {
+        acc[role.name.toUpperCase()] = { id: role.id, name: role.name };
+        return acc;
+    }, {});
+
+    return _roleCache;
+};
+
+// Invalidate cache
+const invalidateRoleCache = () => {
+    _roleCache = null;
+};
+
 // get all users
 const getAllUsers = async (req, res) => {
     try {
@@ -122,14 +148,8 @@ const getUserById = async (req, res) => {
 const updateUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const {
-            email,
-            password,
-            role,
-            guru_id
-        } = req.body;
+        const { email, password, role, guru_id } = req.body;
 
-        // Validasi input wajib
         if (!email || !role) {
             return res.status(400).json({
                 success: false,
@@ -137,7 +157,7 @@ const updateUser = async (req, res) => {
             });
         }
 
-        // Validasi format email
+        // Validasi email
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return res.status(400).json({
@@ -146,20 +166,22 @@ const updateUser = async (req, res) => {
             });
         }
 
-        // Validasi role
-        if (!['ADMIN', 'GURU'].includes(role)) {
+        // Role mapping
+        const roleCache = await getRoleCache();
+        const roleKey = role.toUpperCase();
+
+        if (!roleCache[roleKey]) {
             return res.status(400).json({
                 success: false,
-                message: "Role harus ADMIN atau GURU"
+                message: `Role tidak valid. Pilihan: ${Object.keys(roleCache).join(", ")}`
             });
         }
 
-        // Cek user apakah ada
+        const roleData = roleCache[roleKey];
+
+        // Cek user
         const existingUser = await prisma.user.findFirst({
-            where: {
-                id: id,
-                deleted_at: null
-            }
+            where: { id: id, deleted_at: null }
         });
 
         if (!existingUser) {
@@ -169,26 +191,24 @@ const updateUser = async (req, res) => {
             });
         }
 
-        // Cek duplikasi email (kecuali data sendiri)
+        // Cek duplicate email
         const duplicateEmail = await prisma.user.findFirst({
             where: {
                 email,
                 deleted_at: null,
-                NOT: {
-                    id: id
-                }
+                NOT: { id: id }
             }
         });
 
         if (duplicateEmail) {
             return res.status(409).json({
                 success: false,
-                message: "Email sudah digunakan oleh user lain"
+                message: "Email sudah digunakan user lain"
             });
         }
 
-        // Validasi guru_id jika role GURU
-        if (role === 'GURU') {
+        // Validasi guru
+        if (roleKey === "GURU") {
             if (!guru_id) {
                 return res.status(400).json({
                     success: false,
@@ -196,15 +216,13 @@ const updateUser = async (req, res) => {
                 });
             }
 
-            // Validasi guru_id harus angka
             if (isNaN(parseInt(guru_id))) {
                 return res.status(400).json({
                     success: false,
-                    message: "Guru ID harus berupa angka"
+                    message: "Guru ID harus angka"
                 });
             }
 
-            // Validasi guru exists
             const guruExists = await prisma.guru.findFirst({
                 where: {
                     id: parseInt(guru_id),
@@ -219,34 +237,31 @@ const updateUser = async (req, res) => {
                 });
             }
 
-            // Cek apakah guru sudah memiliki user (kecuali user ini sendiri)
             const guruHasUser = await prisma.user.findFirst({
                 where: {
                     guru_id: parseInt(guru_id),
                     deleted_at: null,
-                    NOT: {
-                        id: id
-                    }
+                    NOT: { id: id }
                 }
             });
 
             if (guruHasUser) {
                 return res.status(409).json({
                     success: false,
-                    message: "Guru sudah memiliki akun user lain"
+                    message: "Guru sudah punya akun lain"
                 });
             }
         }
 
-        // Persiapkan data update
+        // build data
         const updateData = {
             email,
-            role,
-            guru_id: role === 'GURU' && guru_id ? parseInt(guru_id) : null,
+            role_id: roleData.id,
+            guru_id: roleKey === "GURU" ? parseInt(guru_id) : null,
             updated_at: new Date()
         };
 
-        // Hash password baru jika ada
+        // Password optional
         if (password) {
             if (password.length < 6) {
                 return res.status(400).json({
@@ -254,19 +269,23 @@ const updateUser = async (req, res) => {
                     message: "Password minimal 6 karakter"
                 });
             }
+
             updateData.password = await bcrypt.hash(password, 10);
         }
 
-        // Update data
         const updatedUser = await prisma.user.update({
-            where: {
-                id: id
-            },
+            where: { id: id },
             data: updateData,
             select: {
                 id: true,
                 email: true,
-                role: true,
+                role_id: true,
+                role: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                },
                 guru_id: true,
                 guru: {
                     select: {
@@ -284,9 +303,10 @@ const updateUser = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: "Berhasil mengupdate data user",
+            message: "Berhasil update user",
             data: updatedUser
         });
+
     } catch (error) {
         console.error("Error updating user:", error);
         return res.status(500).json({
