@@ -7,10 +7,21 @@ const checkRole = (...allowedRoles) => {
             });
         }
 
-        if (!allowedRoles.includes(req.user.role)) {
+        const userRole = req.user.role_name?.toUpperCase();
+
+        if (!userRole) {
             return res.status(403).json({
                 success: false,
-                message: "Akses ditolak. Hanya admin yang dapat melakukan aksi ini."
+                message: "Role tidak ditemukan di token"
+            });
+        }
+
+        const normalizedRoles = allowedRoles.map(r => r.toUpperCase());
+
+        if (!normalizedRoles.includes(userRole)) {
+            return res.status(403).json({
+                success: false,
+                message: `Akses ditolak. Dibutuhkan role: ${normalizedRoles.join(", ")}`
             });
         }
 
