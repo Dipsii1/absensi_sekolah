@@ -5,7 +5,10 @@
   "scripts": {
     "start": "node ./bin/www",
     "dev": "nodemon app.js",
-    "seed": "node ./src/seed/seed.js"
+    "seed": "prisma db seed --preview-feature"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
