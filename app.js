@@ -23,6 +23,7 @@ var absensiSiswaRoutes = require('./src/routes/absensiSiswaRoutes');
 var detailAbsensi = require('./src/routes/detailAbsensiRoutes')
 var users = require('./src/routes/usersRoutes');
 var auth = require('./src/routes/authRoutes');
+var exportExcelRoutes = require('./src/routes/exportExcelRoutes');
 
 
 // cron job
@@ -61,13 +62,12 @@ app.use('/api/v1/absensi-siswa', absensiSiswaRoutes);
 app.use('/api/v1/detail-absensi', detailAbsensi)
 app.use('/api/v1/users', users);
 app.use('/api/v1/auth', auth);
+app.use('/api/v1/export', exportExcelRoutes);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
   next(createError(404));
 });
-
-
 
 // error handler
 app.use(function (err, req, res, next) {
