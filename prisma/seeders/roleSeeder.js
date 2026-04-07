@@ -4,6 +4,7 @@ module.exports = async (prisma) => {
     const roleData = [
         { name: "ADMIN" },
         { name: "GURU" },
+        { name: "WALAS" },
     ];
 
     const roleMap = {};

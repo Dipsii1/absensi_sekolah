@@ -37,7 +37,7 @@ model Role {
   id   Int    @id @default(autoincrement())
   name String @unique
 
-  users User[]
+  userRole userRole[]
 
   @@map("roles")
 }
@@ -47,8 +47,7 @@ model User {
   email    String @unique
   password String
 
-  role_id Int?
-  role    Role? @relation(fields: [role_id], references: [id])
+  userRole userRole[]
 
   guru_id Int?  @unique
   guru    Guru? @relation(fields: [guru_id], references: [id], onDelete: SetNull)
@@ -59,6 +58,15 @@ model User {
 
   @@index([deleted_at])
   @@map("users")
+}
+
+model userRole {
+  user_id String @db.Uuid
+  role_id Int
+  user    User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role    Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  @@id([user_id, role_id])
+  @@map("user_roles")
 }
 
 model Siswa {

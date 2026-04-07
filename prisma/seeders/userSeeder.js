@@ -14,6 +14,7 @@ module.exports = async (prisma, roleMap, guruList) => {
         { email: "dewi.lestari@sekolah.sch.id",    role: "GURU",  guru_id: guruList[3].id },
         { email: "eko.prasetyo@sekolah.sch.id",    role: "GURU",  guru_id: guruList[4].id },
         { email: "fitri.handayani@sekolah.sch.id", role: "GURU",  guru_id: guruList[5].id },
+        { email: "satrio.handayani@sekolah.sch.id", role: "WALAS",  guru_id: null }
     ];
 
     for (const data of userData) {
