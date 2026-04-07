@@ -1,4 +1,5 @@
 const ExcelJS = require("exceljs");
+const PDFDocument = require("pdfkit");
 const prisma = require("../config/prisma");
 const { formatDate, formatTime, formatDateTime, parseTanggal, validateHari } = require("../helper/date");
 const {
@@ -691,6 +692,123 @@ const exportRekapByJadwal = async (req, res) => {
 };
 
 
+const exportSiswaExcel = async (req, res) => {
+    try {
+        const siswaList = await prisma.siswa.findMany({
+            where: { deleted_at: null },
+            include: {
+                orang_tua: true,
+                kelas: {
+                    include: { jurusan: true, tahun: true }
+                },
+                rfid: {
+                    where: { deleted_at: null, is_active: true }
+                }
+            },
+            orderBy: { nama: "asc" }
+        });
+
+        const wb = new ExcelJS.Workbook();
+        const sheet = wb.addWorksheet("Data Siswa");
+
+        const COLORS = {
+            header: "1F4E79",
+            subheader: "2E75B6",
+            gray: "F2F2F2",
+            white: "FFFFFF"
+        };
+
+        // TITLE
+        sheet.mergeCells("A1:M1");
+        const title = sheet.getCell("A1");
+        title.value = "LAPORAN DATA SISWA";
+        title.font = { bold: true, size: 16 };
+        title.alignment = { horizontal: "center" };
+
+        sheet.mergeCells("A2:M2");
+        sheet.getCell("A2").value = `Tanggal Export: ${new Date().toLocaleDateString()}`;
+
+        sheet.addRow([]);
+
+        // HEADER
+        const headers = [
+            "No", "NISN", "NIPD", "Nama", "Gender",
+            "Tanggal Lahir", "No HP",
+            "Kelas", "Jurusan", "Tahun",
+            "Orang Tua", "No Ortu", "RFID"
+        ];
+
+        const headerRow = sheet.addRow(headers);
+
+        headerRow.eachCell(cell => {
+            cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+            cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FF" + COLORS.header }
+            };
+            cell.alignment = { horizontal: "center" };
+        });
+
+        // DATA
+        siswaList.forEach((s, i) => {
+            const row = sheet.addRow([
+                i + 1,
+                s.NISN,
+                s.NIPD,
+                s.nama,
+                s.gender,
+                s.tanggal_lahir?.toISOString().split("T")[0],
+                s.nomor_telepon,
+                s.kelas?.kelas,
+                s.kelas?.jurusan?.nama_jurusan,
+                s.kelas?.tahun?.tahun_ajaran,
+                s.orang_tua?.nama_orangtua,
+                s.orang_tua?.nomor_telepon,
+                s.rfid?.[0]?.uid_rfid || "-"
+            ]);
+
+            const bg = i % 2 === 0 ? COLORS.gray : COLORS.white;
+
+            row.eachCell(cell => {
+                cell.fill = {
+                    type: "pattern",
+                    pattern: "solid",
+                    fgColor: { argb: "FF" + bg }
+                };
+                cell.alignment = { vertical: "middle", horizontal: "center" };
+                cell.border = {
+                    top: { style: "thin" },
+                    bottom: { style: "thin" },
+                    left: { style: "thin" },
+                    right: { style: "thin" }
+                };
+            });
+        });
+
+        // AUTO WIDTH
+        sheet.columns.forEach(col => {
+            col.width = 18;
+        });
+
+        res.setHeader("Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        res.setHeader("Content-Disposition",
+            "attachment; filename=Data_Siswa_SMK_TARUNA_BHAKTI.xlsx"
+        );
+
+        await wb.xlsx.write(res);
+        res.end();
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Gagal export Excel" });
+    }
+};
+
+
+
 
 
 module.exports = {
@@ -699,4 +817,5 @@ module.exports = {
     exportRekapKelasTahunan,
     exportRekapKelasSemester,
     exportRekapByJadwal,
+    exportSiswaExcel,
 };

@@ -25,7 +25,8 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "~1.9.1",
     "node-cron": "^4.2.1",
-    "node-telegram-bot-api": "^0.67.0"
+    "node-telegram-bot-api": "^0.67.0",
+    "pdfkit": "^0.18.0"
   },
   "devDependencies": {
     "prisma": "^5.22.0"
