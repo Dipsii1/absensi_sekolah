@@ -7,21 +7,26 @@ const checkRole = (...allowedRoles) => {
             });
         }
 
-        const userRole = req.user.role_name?.toUpperCase();
+        // Support multi-role (role_names) maupun single-role lama (role_name)
+        const userRoles = req.user.role_names
+            ?? (req.user.role_name ? [req.user.role_name] : []);
 
-        if (!userRole) {
+        if (!userRoles.length) {
             return res.status(403).json({
                 success: false,
                 message: "Role tidak ditemukan di token"
             });
         }
 
-        const normalizedRoles = allowedRoles.map(r => r.toUpperCase());
+        const normalizedAllowed = allowedRoles.map(r => r.toUpperCase());
 
-        if (!normalizedRoles.includes(userRole)) {
+        // Lolos jika minimal satu role user ada di allowedRoles
+        const hasRole = userRoles.some(r => normalizedAllowed.includes(r.toUpperCase()));
+
+        if (!hasRole) {
             return res.status(403).json({
                 success: false,
-                message: `Akses ditolak. Dibutuhkan role: ${normalizedRoles.join(", ")}`
+                message: `Akses ditolak. Dibutuhkan role: ${normalizedAllowed.join(", ")}`
             });
         }
 

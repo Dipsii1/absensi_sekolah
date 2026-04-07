@@ -13,7 +13,6 @@ const getRoleCache = async () => {
         throw new Error("Tabel roles kosong. Pastikan data master roles sudah diisi.");
     }
 
-    // Build map role
     _roleCache = roles.reduce((acc, role) => {
         acc[role.name.toUpperCase()] = { id: role.id, name: role.name };
         return acc;
@@ -22,17 +21,43 @@ const getRoleCache = async () => {
     return _roleCache;
 };
 
-// Invalidate cache
 const invalidateRoleCache = () => {
     _roleCache = null;
 };
+
+// Helper: select user dengan userRole
+const userSelect = {
+    id: true,
+    email: true,
+    userRole: {
+        include: {
+            role: {
+                select: { id: true, name: true }
+            }
+        }
+    },
+    guru_id: true,
+    guru: {
+        select: {
+            id: true,
+            NIP: true,
+            nama: true,
+            nomor_telepon: true,
+        }
+    },
+    created_at: true,
+    updated_at: true,
+    deleted_at: true,
+};
+
+// Helper: ambil semua roles dari userRole array
+const extractRoles = (userRole) => userRole?.map(ur => ur.role) ?? [];
 
 // Register
 const register = async (req, res) => {
     try {
         const { email, password, role, guru_id } = req.body;
 
-        // Validasi input wajib
         if (!email || !password || !role) {
             return res.status(400).json({
                 success: false,
@@ -40,7 +65,6 @@ const register = async (req, res) => {
             });
         }
 
-        // Validasi format email
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return res.status(400).json({
@@ -49,7 +73,6 @@ const register = async (req, res) => {
             });
         }
 
-        // Validasi password minimal 6 karakter
         if (password.length < 6) {
             return res.status(400).json({
                 success: false,
@@ -57,21 +80,18 @@ const register = async (req, res) => {
             });
         }
 
-        // Load role cache dari DB (lazy, sekali aja)
         const roleCache = await getRoleCache();
         const roleKey = role.toUpperCase();
-        const validRoles = Object.keys(roleCache);
 
         if (!roleCache[roleKey]) {
             return res.status(400).json({
                 success: false,
-                message: `Role tidak valid. Pilihan yang tersedia: ${validRoles.join(", ")}`,
+                message: `Role tidak valid. Pilihan yang tersedia: ${Object.keys(roleCache).join(", ")}`,
             });
         }
 
-        const roleData = roleCache[roleKey]; // { id, name }
+        const roleData = roleCache[roleKey];
 
-        // Cek duplikasi email (user aktif)
         const existingEmail = await prisma.user.findFirst({
             where: { email, deleted_at: null },
         });
@@ -82,7 +102,6 @@ const register = async (req, res) => {
             });
         }
 
-        // Validasi guru_id kalau role GURU
         if (roleKey === "GURU") {
             if (!guru_id) {
                 return res.status(400).json({
@@ -118,15 +137,10 @@ const register = async (req, res) => {
             }
         }
 
-        // Shared payload untuk create / restore
         const hashedPassword = await bcrypt.hash(password, 10);
-        const userPayload = {
-            password: hashedPassword,
-            role_id: roleData.id,
-            guru_id: roleKey === "GURU" && guru_id ? parseInt(guru_id, 10) : null,
-        };
+        const guruIdValue = roleKey === "GURU" && guru_id ? parseInt(guru_id, 10) : null;
 
-        // Cek soft-deleted user dengan email sama → restore
+        // Cek soft-deleted user → restore
         const deletedUser = await prisma.user.findFirst({
             where: { email, deleted_at: { not: null } },
         });
@@ -134,71 +148,46 @@ const register = async (req, res) => {
         if (deletedUser) {
             const restoredUser = await prisma.user.update({
                 where: { id: deletedUser.id },
-                data: { deleted_at: null, ...userPayload },
-                select: {
-                    id: true,
-                    email: true,
-                    role_id: true,
-                    role: {
-                        select: {
-                            id: true,
-                            name: true,
-                        }
-                    },
-                    guru_id: true,
-                    guru: {
-                        select: {
-                            id: true,
-                            NIP: true,
-                            nama: true,
-                            nomor_telepon: true,
-                        }
-                    },
-                    created_at: true,
-                    updated_at: true,
-                    deleted_at: true,
-                }
+                data: {
+                    password: hashedPassword,
+                    guru_id: guruIdValue,
+                    deleted_at: null,
+                    userRole: {
+                        deleteMany: {},
+                        create: { role_id: roleData.id }
+                    }
+                },
+                select: userSelect,
             });
+
+            const roles = extractRoles(restoredUser.userRole);
 
             return res.status(200).json({
                 success: true,
                 message: "Berhasil mengembalikan user yang telah dihapus",
-                data: restoredUser,
+                data: { ...restoredUser, roles },
             });
         }
 
         // Buat user baru
         const newUser = await prisma.user.create({
-            data: { email, ...userPayload },
-            select: {
-                id: true,
-                email: true,
-                role_id: true,
-                role: {
-                    select: {
-                        id: true,
-                        name: true,
-                    }
-                },
-                guru_id: true,
-                guru: {
-                    select: {
-                        id: true,
-                        NIP: true,
-                        nama: true,
-                        nomor_telepon: true,
-                    }
-                },
-                created_at: true,
-                updated_at: true,
-                deleted_at: true,
-            }
+            data: {
+                email,
+                password: hashedPassword,
+                guru_id: guruIdValue,
+                userRole: {
+                    create: { role_id: roleData.id }
+                }
+            },
+            select: userSelect,
         });
+
+        const roles = extractRoles(newUser.userRole);
 
         return res.status(201).json({
             success: true,
             message: "Registrasi berhasil",
-            data: newUser,
+            data: { ...newUser, roles },
         });
 
     } catch (error) {
@@ -226,10 +215,11 @@ const login = async (req, res) => {
         const user = await prisma.user.findFirst({
             where: { email, deleted_at: null },
             include: {
-                role: {
-                    select: {
-                        id: true,
-                        name: true,
+                userRole: {
+                    include: {
+                        role: {
+                            select: { id: true, name: true }
+                        }
                     }
                 },
                 guru: {
@@ -258,27 +248,31 @@ const login = async (req, res) => {
             });
         }
 
-        // JWT payload bawa role_id (int) + role_name (string) sekaligus
-        // → middleware bisa cek salah satu atau keduanya
+        const roles = extractRoles(user.userRole);
+
         const accessToken = jwt.sign(
             {
                 id: user.id,
                 email: user.email,
-                role_id: user.role_id,
-                role_name: user.role?.name?.toUpperCase() ?? null,
+                // Array semua role_id yang dimiliki user
+                role_ids: roles.map(r => r.id),
+                // Array semua role_name uppercase
+                role_names: roles.map(r => r.name.toUpperCase()),
                 guru_id: user.guru_id,
             },
             process.env.JWT_SECRET,
             { expiresIn: "24h" }
         );
 
-        // Hapus password dari response
         const { password: _, ...userData } = user;
 
         return res.status(200).json({
             success: true,
             message: "Login berhasil",
-            data: { user: userData, accessToken },
+            data: {
+                user: { ...userData, roles },
+                accessToken
+            },
         });
 
     } catch (error) {
@@ -294,13 +288,10 @@ const login = async (req, res) => {
 // Logout
 const logout = async (req, res) => {
     try {
-        // Karena menggunakan stateless JWT, logout dilakukan di client side
-        // Client menghapus token dari storage mereka
         return res.status(200).json({
             success: true,
             message: "Logout berhasil"
         });
-
     } catch (error) {
         console.error("Error in logout:", error);
         return res.status(500).json({
@@ -314,30 +305,9 @@ const logout = async (req, res) => {
 // Get Current User
 const me = async (req, res) => {
     try {
-        // req.user sudah di-set dari middleware verifyToken
         const user = await prisma.user.findFirst({
             where: { id: req.user.id, deleted_at: null },
-            select: {
-                id: true,
-                email: true,
-                role_id: true,
-                role: {
-                    select: {
-                        id: true,
-                        name: true,
-                    }
-                },
-                guru_id: true,
-                guru: {
-                    select: {
-                        id: true,
-                        NIP: true,
-                        nama: true,
-                        nomor_telepon: true,
-                    }
-                },
-                created_at: true,
-            },
+            select: userSelect,
         });
 
         if (!user) {
@@ -347,9 +317,11 @@ const me = async (req, res) => {
             });
         }
 
+        const roles = extractRoles(user.userRole);
+
         return res.status(200).json({
             success: true,
-            data: user
+            data: { ...user, roles },
         });
 
     } catch (error) {
@@ -367,5 +339,5 @@ module.exports = {
     login,
     logout,
     me,
-    invalidateRoleCache, // export kalau sewaktu-waktu butuh refresh cache
+    invalidateRoleCache,
 };
