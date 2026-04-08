@@ -1,7 +1,6 @@
 const prisma = require("../config/prisma");
 const bcrypt = require("bcrypt");
 
-
 let _roleCache = null;
 
 const getRoleCache = async () => {
@@ -13,7 +12,6 @@ const getRoleCache = async () => {
         throw new Error("Tabel roles kosong. Pastikan data master roles sudah diisi.");
     }
 
-    // Build map role
     _roleCache = roles.reduce((acc, role) => {
         acc[role.name.toUpperCase()] = { id: role.id, name: role.name };
         return acc;
@@ -22,7 +20,6 @@ const getRoleCache = async () => {
     return _roleCache;
 };
 
-// Invalidate cache
 const invalidateRoleCache = () => {
     _roleCache = null;
 };
@@ -34,7 +31,6 @@ const getAllUsers = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        // mencari data yang tidak di hapus
         const whereCondition = {
             deleted_at: null
         };
@@ -50,8 +46,14 @@ const getAllUsers = async (req, res) => {
                 select: {
                     id: true,
                     email: true,
-                    role: true,
                     guru_id: true,
+                    userRole: {
+                        include: {
+                            role: {
+                                select: { id: true, name: true }
+                            }
+                        }
+                    },
                     guru: {
                         select: {
                             id: true,
@@ -104,8 +106,14 @@ const getUserById = async (req, res) => {
             select: {
                 id: true,
                 email: true,
-                role: true,
                 guru_id: true,
+                userRole: {
+                    include: {
+                        role: {
+                            select: { id: true, name: true }
+                        }
+                    }
+                },
                 guru: {
                     select: {
                         id: true,
@@ -181,7 +189,7 @@ const updateUser = async (req, res) => {
 
         // Cek user
         const existingUser = await prisma.user.findFirst({
-            where: { id: id, deleted_at: null }
+            where: { id, deleted_at: null }
         });
 
         if (!existingUser) {
@@ -196,7 +204,7 @@ const updateUser = async (req, res) => {
             where: {
                 email,
                 deleted_at: null,
-                NOT: { id: id }
+                NOT: { id }
             }
         });
 
@@ -241,7 +249,7 @@ const updateUser = async (req, res) => {
                 where: {
                     guru_id: parseInt(guru_id),
                     deleted_at: null,
-                    NOT: { id: id }
+                    NOT: { id }
                 }
             });
 
@@ -253,10 +261,9 @@ const updateUser = async (req, res) => {
             }
         }
 
-        // build data
+        // Build data update untuk tabel users
         const updateData = {
             email,
-            role_id: roleData.id,
             guru_id: roleKey === "GURU" ? parseInt(guru_id) : null,
             updated_at: new Date()
         };
@@ -269,36 +276,56 @@ const updateUser = async (req, res) => {
                     message: "Password minimal 6 karakter"
                 });
             }
-
             updateData.password = await bcrypt.hash(password, 10);
         }
 
-        const updatedUser = await prisma.user.update({
-            where: { id: id },
-            data: updateData,
-            select: {
-                id: true,
-                email: true,
-                role_id: true,
-                role: {
-                    select: {
-                        id: true,
-                        name: true
-                    }
-                },
-                guru_id: true,
-                guru: {
-                    select: {
-                        id: true,
-                        NIP: true,
-                        nama: true,
-                        nomor_telepon: true
-                    }
-                },
-                created_at: true,
-                updated_at: true,
-                deleted_at: true
-            }
+        // Jalankan update user + update userRole dalam satu transaksi
+        const updatedUser = await prisma.$transaction(async (tx) => {
+            // Update data user
+            await tx.user.update({
+                where: { id },
+                data: updateData
+            });
+
+            // Hapus semua role lama lalu insert role baru
+            await tx.userRole.deleteMany({
+                where: { user_id: id }
+            });
+
+            await tx.userRole.create({
+                data: {
+                    user_id: id,
+                    role_id: roleData.id
+                }
+            });
+
+            // Ambil data user terbaru dengan relasi lengkap
+            return tx.user.findFirst({
+                where: { id },
+                select: {
+                    id: true,
+                    email: true,
+                    guru_id: true,
+                    userRole: {
+                        include: {
+                            role: {
+                                select: { id: true, name: true }
+                            }
+                        }
+                    },
+                    guru: {
+                        select: {
+                            id: true,
+                            NIP: true,
+                            nama: true,
+                            nomor_telepon: true
+                        }
+                    },
+                    created_at: true,
+                    updated_at: true,
+                    deleted_at: true
+                }
+            });
         });
 
         return res.status(200).json({
@@ -322,10 +349,9 @@ const deleteUser = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Cek user apakah ada
         const existingUser = await prisma.user.findFirst({
             where: {
-                id: id,
+                id,
                 deleted_at: null
             }
         });
@@ -337,11 +363,8 @@ const deleteUser = async (req, res) => {
             });
         }
 
-        // Soft delete
         await prisma.user.update({
-            where: {
-                id: id
-            },
+            where: { id },
             data: {
                 deleted_at: new Date()
             }
@@ -351,6 +374,7 @@ const deleteUser = async (req, res) => {
             success: true,
             message: "Berhasil menghapus data user"
         });
+
     } catch (error) {
         console.error("Error deleting user:", error);
         return res.status(500).json({
@@ -365,5 +389,6 @@ module.exports = {
     getAllUsers,
     getUserById,
     updateUser,
-    deleteUser
+    deleteUser,
+    invalidateRoleCache
 };
