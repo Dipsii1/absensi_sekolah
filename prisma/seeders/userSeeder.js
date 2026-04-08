@@ -38,7 +38,7 @@ module.exports = async (prisma, roleMap, guruList) => {
     },
     {
       email: "fitri.handayani@sekolah.sch.id",
-      roles: ["GURU"],
+      roles: ["GURU", "WALAS"],
       guru_id: guruList[5].id,
     },
     {
