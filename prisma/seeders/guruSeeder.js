@@ -44,6 +44,13 @@ module.exports = async (prisma) => {
             alamat: "Jl. Pemuda No. 3, Yogyakarta",
             tanggal_lahir: new Date("1991-07-31"),
         },
+        {
+            NIP: "199107312015012007",
+            nama: "Satrio Handayani",
+            nomor_telepon: "081234567896",
+            alamat: "Depok Jl. Pemuda No. 3, Yogyakarta",
+            tanggal_lahir: new Date("1991-02-20"),
+        },
     ];
 
     const guruList = [];
