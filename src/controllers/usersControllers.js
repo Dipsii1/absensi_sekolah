@@ -156,7 +156,7 @@ const getUserById = async (req, res) => {
 const updateUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const { email, password, role, guru_id } = req.body;
+        const { email, password, role, guru_id, role_names } = req.body;
 
         if (!email || !role) {
             return res.status(400).json({
@@ -174,22 +174,48 @@ const updateUser = async (req, res) => {
             });
         }
 
-        // Role mapping
+        // Role mapping 
         const roleCache = await getRoleCache();
-        const roleKey = role.toUpperCase();
 
-        if (!roleCache[roleKey]) {
+        const normalizeRoleName = (r) => {
+            if (!r) return null;
+            const upper = String(r).trim().toUpperCase();
+            return upper === "WALI KELAS" ? "WALAS" : upper;
+        };
+
+        const requestedRoleNamesRaw = Array.isArray(role_names) && role_names.length
+            ? role_names
+            : [role];
+
+        const requestedRoleNames = requestedRoleNamesRaw
+            .map(normalizeRoleName)
+            .filter(Boolean);
+
+        // Jika ada ADMIN, pastikan hanya ADMIN yang dipilih
+        const finalRoleNames = requestedRoleNames.includes("ADMIN")
+            ? ["ADMIN"]
+            : Array.from(new Set(requestedRoleNames));
+
+        const invalidRoles = finalRoleNames.filter((r) => !roleCache[r]);
+        if (invalidRoles.length) {
             return res.status(400).json({
                 success: false,
-                message: `Role tidak valid. Pilihan: ${Object.keys(roleCache).join(", ")}`
+                message: `Role tidak valid: ${invalidRoles.join(", ")}. Pilihan: ${Object.keys(roleCache).join(", ")}`
             });
         }
 
-        const roleData = roleCache[roleKey];
+        const roleKey = normalizeRoleName(role);
 
         // Cek user
         const existingUser = await prisma.user.findFirst({
-            where: { id, deleted_at: null }
+            where: { id, deleted_at: null },
+            include: {
+                userRole: {
+                    include: {
+                        role: { select: { id: true, name: true } }
+                    }
+                }
+            }
         });
 
         if (!existingUser) {
@@ -197,6 +223,20 @@ const updateUser = async (req, res) => {
                 success: false,
                 message: "User tidak ditemukan"
             });
+        }
+
+        const existingRoleNames = (existingUser.userRole || [])
+            .map((ur) => normalizeRoleName(ur?.role?.name))
+            .filter(Boolean);
+
+        // Jika user sudah punya role ADMIN, pastikan tetap ADMIN saja
+        if (existingRoleNames.includes("ADMIN")) {
+            if (!(finalRoleNames.length === 1 && finalRoleNames[0] === "ADMIN")) {
+                return res.status(403).json({
+                    success: false,
+                    message: "User dengan role ADMIN tidak dapat diubah rolenya"
+                });
+            }
         }
 
         // Cek duplicate email
@@ -216,7 +256,8 @@ const updateUser = async (req, res) => {
         }
 
         // Validasi guru
-        if (roleKey === "GURU") {
+        const isGuru = finalRoleNames.includes("GURU");
+        if (isGuru) {
             if (!guru_id) {
                 return res.status(400).json({
                     success: false,
@@ -264,7 +305,7 @@ const updateUser = async (req, res) => {
         // Build data update untuk tabel users
         const updateData = {
             email,
-            guru_id: roleKey === "GURU" ? parseInt(guru_id) : null,
+            guru_id: isGuru ? parseInt(guru_id) : null,
             updated_at: new Date()
         };
 
@@ -279,7 +320,7 @@ const updateUser = async (req, res) => {
             updateData.password = await bcrypt.hash(password, 10);
         }
 
-        // Jalankan update user + update userRole dalam satu transaksi
+        // Jalankan update user 
         const updatedUser = await prisma.$transaction(async (tx) => {
             // Update data user
             await tx.user.update({
@@ -287,16 +328,18 @@ const updateUser = async (req, res) => {
                 data: updateData
             });
 
-            // Hapus semua role lama lalu insert role baru
+            const desiredRoleIds = finalRoleNames.map((r) => roleCache[r].id);
+
             await tx.userRole.deleteMany({
-                where: { user_id: id }
+                where: {
+                    user_id: id,
+                    role_id: { notIn: desiredRoleIds }
+                }
             });
 
-            await tx.userRole.create({
-                data: {
-                    user_id: id,
-                    role_id: roleData.id
-                }
+            await tx.userRole.createMany({
+                data: desiredRoleIds.map((rid) => ({ user_id: id, role_id: rid })),
+                skipDuplicates: true
             });
 
             // Ambil data user terbaru dengan relasi lengkap
