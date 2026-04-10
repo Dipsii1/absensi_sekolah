@@ -14,11 +14,11 @@ const formatDateTime = (date) => {
 
 const formatDate = (date) => {
     if (!date) return null;
-    return new Date(date).toLocaleDateString('id-ID', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'Asia/Jakarta'
+    return new Date(time).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'UTC'
     });
 };
 
@@ -36,10 +36,16 @@ const formatTime = (time) => {
 };
 
 // get hari untuk validasi hari untuk tapin absensi
-const validateHari = (date) => {
-    const validHari = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+const VALID_HARI = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+
+const validateHari = (hari) => {
+    if (!hari) return false;
+    return VALID_HARI.includes(hari.toUpperCase());
+};
+
+const getHariFromDate = (date) => {
     const wibDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
-    return validHari[wibDate.getDay()];
+    return VALID_HARI[wibDate.getDay()];
 };
 
 const validateTimeFormat = (time) => {
@@ -62,8 +68,8 @@ module.exports = {
     formatDateTime,
     formatDate,
     formatTime,
-    validateHari,
     validateTimeFormat,
+    validateHari,
     getTodayWIB,
     parseTanggal,
 };

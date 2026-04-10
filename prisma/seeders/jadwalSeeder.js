@@ -108,7 +108,7 @@ module.exports = async (prisma, kelasList, mapelList, guruList, jurusanList) => 
         { hari: "RABU",    kelas_id: kelasList[5].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
         { hari: "KAMIS",   kelas_id: kelasList[5].id, mapel_id: mapelList[5].id, guru_id: guruList[2].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
         { hari: "KAMIS",   kelas_id: kelasList[5].id, mapel_id: mapelList[6].id, guru_id: guruList[3].id, jam_mulai: jam(14,30), jam_selesai: jam(16,0)  },
-        { hari: "JUMAT",   kelas_id: kelasList[5].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
+        { hari: "JUMAT",   kelas_id: kelasList[5].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(16,0),  jam_selesai: jam(17,30) },
         { hari: "JUMAT",   kelas_id: kelasList[5].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(14,30), jam_selesai: jam(16,0)  },
         { hari: "SABTU",   kelas_id: kelasList[5].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
         { hari: "SABTU",   kelas_id: kelasList[5].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(14,30), jam_selesai: jam(16,0)  },

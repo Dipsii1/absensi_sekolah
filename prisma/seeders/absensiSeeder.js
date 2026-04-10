@@ -51,7 +51,6 @@ module.exports = async (prisma, siswaList) => {
                     siswa_id: siswa.id,
                     tanggal: today,
                     tap_in: tapInDate,
-                    tap_out: tapOutDate,
                     rfid_id: rfid?.id ?? null,
                     status_tapin: statusTapIn,
                 },
