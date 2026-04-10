@@ -10,31 +10,108 @@ module.exports = async (prisma, kelasList, mapelList, guruList, jurusanList) => 
     const jam = (hh, mm) =>
         new Date(`1970-01-01T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00Z`);
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Jadwal lengkap SENIN – SABTU untuk semua kelas
+    // Setiap kelas mendapat 2 slot per hari (pagi & siang)
+    // Guru & mapel dirotasi agar tidak bentrok di jam yang sama
+    // ─────────────────────────────────────────────────────────────────────────
     const jadwalData = [
-        { hari: "SENIN",  kelas_id: kelasList[0].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(7,0),  jam_selesai: jam(8,30) },
-        { hari: "SENIN",  kelas_id: kelasList[0].id, mapel_id: mapelList[5].id, guru_id: guruList[2].id, jam_mulai: jam(8,30), jam_selesai: jam(10,0) },
-        { hari: "SELASA", kelas_id: kelasList[0].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(7,0),  jam_selesai: jam(8,30) },
-        { hari: "SELASA", kelas_id: kelasList[0].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(8,30), jam_selesai: jam(10,0) },
-        { hari: "RABU",   kelas_id: kelasList[0].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(7,0),  jam_selesai: jam(8,30) },
-        { hari: "KAMIS",  kelas_id: kelasList[0].id, mapel_id: mapelList[6].id, guru_id: guruList[5].id, jam_mulai: jam(7,0),  jam_selesai: jam(8,30) },
 
-        { hari: "SENIN",  kelas_id: kelasList[1].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(10,0), jam_selesai: jam(11,30) },
-        { hari: "SELASA", kelas_id: kelasList[1].id, mapel_id: mapelList[5].id, guru_id: guruList[2].id, jam_mulai: jam(10,0), jam_selesai: jam(11,30) },
-        { hari: "RABU",   kelas_id: kelasList[1].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(8,30), jam_selesai: jam(10,0) },
+        // ══════════════════════════════════════
+        // KELAS 0
+        // ══════════════════════════════════════
+        { hari: "SENIN",   kelas_id: kelasList[0].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "SENIN",   kelas_id: kelasList[0].id, mapel_id: mapelList[5].id, guru_id: guruList[2].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "SELASA",  kelas_id: kelasList[0].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "SELASA",  kelas_id: kelasList[0].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "RABU",    kelas_id: kelasList[0].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "RABU",    kelas_id: kelasList[0].id, mapel_id: mapelList[6].id, guru_id: guruList[5].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "KAMIS",   kelas_id: kelasList[0].id, mapel_id: mapelList[6].id, guru_id: guruList[5].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "KAMIS",   kelas_id: kelasList[0].id, mapel_id: mapelList[4].id, guru_id: guruList[3].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "JUMAT",   kelas_id: kelasList[0].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "JUMAT",   kelas_id: kelasList[0].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "SABTU",   kelas_id: kelasList[0].id, mapel_id: mapelList[3].id, guru_id: guruList[1].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "SABTU",   kelas_id: kelasList[0].id, mapel_id: mapelList[1].id, guru_id: guruList[4].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
 
-        { hari: "SENIN",  kelas_id: kelasList[2].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(8,30), jam_selesai: jam(10,0) },
-        { hari: "RABU",   kelas_id: kelasList[2].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(8,30), jam_selesai: jam(10,0) },
-        { hari: "JUMAT",  kelas_id: kelasList[2].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(7,0),  jam_selesai: jam(8,30) },
+        // ══════════════════════════════════════
+        // KELAS 1
+        // ══════════════════════════════════════
+        { hari: "SENIN",   kelas_id: kelasList[1].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "SENIN",   kelas_id: kelasList[1].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
+        { hari: "SELASA",  kelas_id: kelasList[1].id, mapel_id: mapelList[5].id, guru_id: guruList[2].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "SELASA",  kelas_id: kelasList[1].id, mapel_id: mapelList[7].id, guru_id: guruList[4].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
+        { hari: "RABU",    kelas_id: kelasList[1].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "RABU",    kelas_id: kelasList[1].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "KAMIS",   kelas_id: kelasList[1].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "KAMIS",   kelas_id: kelasList[1].id, mapel_id: mapelList[6].id, guru_id: guruList[3].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
+        { hari: "JUMAT",   kelas_id: kelasList[1].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "JUMAT",   kelas_id: kelasList[1].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
+        { hari: "SABTU",   kelas_id: kelasList[1].id, mapel_id: mapelList[5].id, guru_id: guruList[2].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "SABTU",   kelas_id: kelasList[1].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
 
-        { hari: "SENIN",  kelas_id: kelasList[3].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0) },
-        { hari: "SELASA", kelas_id: kelasList[3].id, mapel_id: mapelList[6].id, guru_id: guruList[3].id, jam_mulai: jam(7,0),  jam_selesai: jam(8,30) },
-        { hari: "RABU",   kelas_id: kelasList[3].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0) },
+        // ══════════════════════════════════════
+        // KELAS 2
+        // ══════════════════════════════════════
+        { hari: "SENIN",   kelas_id: kelasList[2].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "SENIN",   kelas_id: kelasList[2].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "SELASA",  kelas_id: kelasList[2].id, mapel_id: mapelList[6].id, guru_id: guruList[5].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "SELASA",  kelas_id: kelasList[2].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "RABU",    kelas_id: kelasList[2].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "RABU",    kelas_id: kelasList[2].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "KAMIS",   kelas_id: kelasList[2].id, mapel_id: mapelList[5].id, guru_id: guruList[2].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "KAMIS",   kelas_id: kelasList[2].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "JUMAT",   kelas_id: kelasList[2].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "JUMAT",   kelas_id: kelasList[2].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "SABTU",   kelas_id: kelasList[2].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "SABTU",   kelas_id: kelasList[2].id, mapel_id: mapelList[6].id, guru_id: guruList[5].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
 
-        { hari: "SELASA", kelas_id: kelasList[4].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(8,30), jam_selesai: jam(10,0) },
-        { hari: "KAMIS",  kelas_id: kelasList[4].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(7,0),  jam_selesai: jam(8,30) },
+        // ══════════════════════════════════════
+        // KELAS 3
+        // ══════════════════════════════════════
+        { hari: "SENIN",   kelas_id: kelasList[3].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
+        { hari: "SENIN",   kelas_id: kelasList[3].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
+        { hari: "SELASA",  kelas_id: kelasList[3].id, mapel_id: mapelList[6].id, guru_id: guruList[3].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "SELASA",  kelas_id: kelasList[3].id, mapel_id: mapelList[5].id, guru_id: guruList[2].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "RABU",    kelas_id: kelasList[3].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
+        { hari: "RABU",    kelas_id: kelasList[3].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
+        { hari: "KAMIS",   kelas_id: kelasList[3].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
+        { hari: "KAMIS",   kelas_id: kelasList[3].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
+        { hari: "JUMAT",   kelas_id: kelasList[3].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
+        { hari: "JUMAT",   kelas_id: kelasList[3].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
+        { hari: "SABTU",   kelas_id: kelasList[3].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
+        { hari: "SABTU",   kelas_id: kelasList[3].id, mapel_id: mapelList[6].id, guru_id: guruList[3].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
 
-        { hari: "SENIN",  kelas_id: kelasList[5].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(13,0), jam_selesai: jam(14,30) },
-        { hari: "RABU",   kelas_id: kelasList[5].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(10,0), jam_selesai: jam(11,30) },
+        // ══════════════════════════════════════
+        // KELAS 4
+        // ══════════════════════════════════════
+        { hari: "SENIN",   kelas_id: kelasList[4].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "SENIN",   kelas_id: kelasList[4].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "SELASA",  kelas_id: kelasList[4].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "SELASA",  kelas_id: kelasList[4].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "RABU",    kelas_id: kelasList[4].id, mapel_id: mapelList[6].id, guru_id: guruList[5].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "RABU",    kelas_id: kelasList[4].id, mapel_id: mapelList[5].id, guru_id: guruList[2].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "KAMIS",   kelas_id: kelasList[4].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "KAMIS",   kelas_id: kelasList[4].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "JUMAT",   kelas_id: kelasList[4].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "JUMAT",   kelas_id: kelasList[4].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+        { hari: "SABTU",   kelas_id: kelasList[4].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(7,0),   jam_selesai: jam(8,30)  },
+        { hari: "SABTU",   kelas_id: kelasList[4].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(8,30),  jam_selesai: jam(10,0)  },
+
+        // ══════════════════════════════════════
+        // KELAS 5
+        // ══════════════════════════════════════
+        { hari: "SENIN",   kelas_id: kelasList[5].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
+        { hari: "SENIN",   kelas_id: kelasList[5].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(14,30), jam_selesai: jam(16,0)  },
+        { hari: "SELASA",  kelas_id: kelasList[5].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
+        { hari: "SELASA",  kelas_id: kelasList[5].id, mapel_id: mapelList[1].id, guru_id: guruList[1].id, jam_mulai: jam(14,30), jam_selesai: jam(16,0)  },
+        { hari: "RABU",    kelas_id: kelasList[5].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(10,0),  jam_selesai: jam(11,30) },
+        { hari: "RABU",    kelas_id: kelasList[5].id, mapel_id: mapelList[2].id, guru_id: guruList[4].id, jam_mulai: jam(11,30), jam_selesai: jam(13,0)  },
+        { hari: "KAMIS",   kelas_id: kelasList[5].id, mapel_id: mapelList[5].id, guru_id: guruList[2].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
+        { hari: "KAMIS",   kelas_id: kelasList[5].id, mapel_id: mapelList[6].id, guru_id: guruList[3].id, jam_mulai: jam(14,30), jam_selesai: jam(16,0)  },
+        { hari: "JUMAT",   kelas_id: kelasList[5].id, mapel_id: mapelList[7].id, guru_id: guruList[2].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
+        { hari: "JUMAT",   kelas_id: kelasList[5].id, mapel_id: mapelList[4].id, guru_id: guruList[5].id, jam_mulai: jam(14,30), jam_selesai: jam(16,0)  },
+        { hari: "SABTU",   kelas_id: kelasList[5].id, mapel_id: mapelList[0].id, guru_id: guruList[0].id, jam_mulai: jam(13,0),  jam_selesai: jam(14,30) },
+        { hari: "SABTU",   kelas_id: kelasList[5].id, mapel_id: mapelList[3].id, guru_id: guruList[3].id, jam_mulai: jam(14,30), jam_selesai: jam(16,0)  },
     ];
 
     const jadwalList = [];
@@ -52,8 +129,8 @@ module.exports = async (prisma, kelasList, mapelList, guruList, jurusanList) => 
         const jadwal = existing ?? await prisma.jadwal.create({ data });
         jadwalList.push(jadwal);
 
-        const mapel  = mapelList.find(m => m.id === data.mapel_id);
-        const kelas  = kelasList.find(k => k.id === data.kelas_id);
+        const mapel   = mapelList.find(m => m.id === data.mapel_id);
+        const kelas   = kelasList.find(k => k.id === data.kelas_id);
         const jurusan = jurusanList.find(j => j.id === kelas.jurusan_id);
 
         const hh = data.jam_mulai.getUTCHours().toString().padStart(2, "0");

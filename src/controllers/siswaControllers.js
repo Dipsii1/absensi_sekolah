@@ -18,7 +18,7 @@ const getAllSiswa = async (req, res) => {
                 skip,
                 take: limit,
                 orderBy: {
-                    created_at: "desc"
+                    created_at: "asc"
                 },
                 include: {
                     orang_tua: {
