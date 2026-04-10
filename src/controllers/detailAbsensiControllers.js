@@ -1,6 +1,6 @@
 const prisma = require("../config/prisma");
 const { StatusAbsensi } = require("@prisma/client");
-const { formatDate, formatTime, formatDateTime, validateHari, parseTanggal, getTodayWIB } = require("../helper/date");
+const { formatDate, formatTime, formatDateTime, validateHari, getHariFromDate, parseTanggal, getTodayWIB } = require("../helper/date");
 
 const NAMA_BULAN = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -9,7 +9,7 @@ const NAMA_BULAN = [
 
 const getActiveJadwalGuru = async (guru_id) => {
     const now = new Date();
-    const hari = validateHari(now);
+    const hari = getHariFromDate(now);
 
     const jamWIBStr = now.toLocaleTimeString("en-GB", { timeZone: "Asia/Jakarta" });
     const jamWIB = new Date(`1970-01-01T${jamWIBStr}Z`);
@@ -64,7 +64,7 @@ const groupPerBulan = (detailArr, getTanggal) => {
 // Absensi by guru
 const absensiByGuru = async (req, res) => {
     try {
-        const { guru_id } = req.body;
+        const { guru_id, absensi_ids } = req.body;
 
         if (!guru_id) {
             return res.status(400).json({
@@ -84,13 +84,21 @@ const absensiByGuru = async (req, res) => {
 
         const today = getTodayWIB();
         const siswaList = jadwal.kelas.siswa;
-        const siswaIds = siswaList.map((s) => s.id);
+
+        const targetSiswaList = absensi_ids?.length
+            ? siswaList.filter((s) => {
+                return true; 
+            })
+            : siswaList;
+
+        const siswaIds = targetSiswaList.map((s) => s.id);
 
         const absensiList = await prisma.absensiSiswa.findMany({
             where: {
                 siswa_id: { in: siswaIds },
                 tanggal: today,
-                deleted_at: null
+                deleted_at: null,
+                ...(absensi_ids?.length ? { id: { in: absensi_ids } } : {})
             },
             include: {
                 detail: {
@@ -107,7 +115,7 @@ const absensiByGuru = async (req, res) => {
         const toCreate = [];
         const results = [];
 
-        for (const siswa of siswaList) {
+        for (const siswa of targetSiswaList) {
             const absensi = absensiMap.get(siswa.id);
 
             if (!absensi) {
@@ -398,7 +406,7 @@ const getRekapAbsensiKelas = async (req, res) => {
         }
 
         const targetDate = parseTanggal(tanggal);
-        const hari = validateHari(targetDate);
+        const hari = getHariFromDate(targetDate);
 
         const kelas = await prisma.kelas.findFirst({
             where: {
@@ -1242,7 +1250,8 @@ const pratinjauWalas = async (req, res) => {
                     tahun_ajaran: kelas.tahun.tahun_ajaran
                 },
                 tanggal: formatDate(targetDate),
-                hari: validateHari(targetDate),
+                // FIX #3: validateHari(targetDate) → getHariFromDate(targetDate)
+                hari: getHariFromDate(targetDate),
                 summary,
                 daftar_siswa: daftarSiswa
             }
@@ -1252,8 +1261,7 @@ const pratinjauWalas = async (req, res) => {
         console.error("Error in pratinjauWalas:", error);
         return res.status(500).json({
             success: false,
-            message: "Terjadi kesalahan pada server",
-            error: error.message
+            message: "Terjadi kesalahan pada server"
         });
     }
 };

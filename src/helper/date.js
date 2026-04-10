@@ -1,4 +1,5 @@
 // format tanggal dan waktu ke dalam format Indonesia
+
 const formatDateTime = (date) => {
     if (!date) return null;
     return new Date(date).toLocaleString('id-ID', {
@@ -12,16 +13,19 @@ const formatDateTime = (date) => {
     });
 };
 
+// FIX: formatDate harus format TANGGAL (dd/mm/yyyy), bukan waktu
+// Bug asli: pakai new Date(time) padahal param namanya date, dan pakai toLocaleTimeString
 const formatDate = (date) => {
     if (!date) return null;
-    return new Date(time).toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'UTC'
+    return new Date(date).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta'
     });
 };
 
+// formatTime: format JAM (HH:mm)
 const formatTime = (time) => {
     if (!time) return null;
     if (typeof time === 'string') {
@@ -35,15 +39,19 @@ const formatTime = (time) => {
     });
 };
 
-// get hari untuk validasi hari untuk tapin absensi
 const VALID_HARI = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
 
+// validateHari: menerima STRING hari (misal 'SENIN'), return true/false
+// Dipakai di detailAbsensiControllers.js
 const validateHari = (hari) => {
     if (!hari) return false;
     return VALID_HARI.includes(hari.toUpperCase());
 };
 
+// getHariFromDate: menerima Date object, return nama hari (misal 'SENIN')
+// Dipakai di absensiSiswaControllers.js: getHariFromDate(new Date())
 const getHariFromDate = (date) => {
+    if (!date) return null;
     const wibDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
     return VALID_HARI[wibDate.getDay()];
 };
@@ -70,6 +78,7 @@ module.exports = {
     formatTime,
     validateTimeFormat,
     validateHari,
+    getHariFromDate,
     getTodayWIB,
     parseTanggal,
 };
