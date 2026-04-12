@@ -29,11 +29,7 @@ const getAllRfid = async (req, res) => {
                             kelas: {
                                 select: {
                                     kelas: true,
-                                    jurusan: {
-                                        select: {
-                                            nama_jurusan: true
-                                        }
-                                    },
+                                    jurusan: true,
                                     tahun: {
                                         select: {
                                             tahun_ajaran: true,
@@ -139,11 +135,7 @@ const getRfidById = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                },
+                                jurusan: true,
                                 tahun: {
                                     select: {
                                         tahun_ajaran: true,
@@ -290,11 +282,7 @@ const createRFID = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                },
+                                jurusan: true,
                                 tahun: {
                                     select: {
                                         tahun_ajaran: true,
@@ -459,11 +447,7 @@ const updateRFID = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                },
+                                jurusan: true,
                                 tahun: {
                                     select: {
                                         tahun_ajaran: true,

@@ -1,4 +1,4 @@
-module.exports = async (prisma, kelasList, mapelList, guruList, jurusanList) => {
+module.exports = async (prisma, kelasList, mapelList, guruList) => {
 
     console.log("🗓️  Seeding Jadwal...");
 
@@ -10,11 +10,6 @@ module.exports = async (prisma, kelasList, mapelList, guruList, jurusanList) => 
     const jam = (hh, mm) =>
         new Date(`1970-01-01T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00Z`);
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Jadwal lengkap SENIN – SABTU untuk semua kelas
-    // Setiap kelas mendapat 2 slot per hari (pagi & siang)
-    // Guru & mapel dirotasi agar tidak bentrok di jam yang sama
-    // ─────────────────────────────────────────────────────────────────────────
     const jadwalData = [
 
         // ══════════════════════════════════════
@@ -129,14 +124,13 @@ module.exports = async (prisma, kelasList, mapelList, guruList, jurusanList) => 
         const jadwal = existing ?? await prisma.jadwal.create({ data });
         jadwalList.push(jadwal);
 
-        const mapel   = mapelList.find(m => m.id === data.mapel_id);
-        const kelas   = kelasList.find(k => k.id === data.kelas_id);
-        const jurusan = jurusanList.find(j => j.id === kelas.jurusan_id);
+        const mapel = mapelList.find(m => m.id === data.mapel_id);
+        const kelas = kelasList.find(k => k.id === data.kelas_id);
 
         const hh = data.jam_mulai.getUTCHours().toString().padStart(2, "0");
         const mm = data.jam_mulai.getUTCMinutes().toString().padStart(2, "0");
 
-        console.log(`  ✔ ${data.hari.padEnd(7)} ${hh}:${mm} | ${mapel.nama_mapel} | ${kelas.kelas} ${jurusan.nama_jurusan}`);
+        console.log(`  ✔ ${data.hari.padEnd(7)} ${hh}:${mm} | ${mapel.nama_mapel} | ${kelas.kelas} ${kelas.jurusan}`);
     }
 
     return jadwalList;

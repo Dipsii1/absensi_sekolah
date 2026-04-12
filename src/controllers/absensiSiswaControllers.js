@@ -8,7 +8,6 @@ const tapIn = async (req, res) => {
     try {
         const { uid_rfid } = req.body;
 
-        // Validasi input
         if (!uid_rfid) {
             return res.status(400).json({
                 success: false,
@@ -16,7 +15,6 @@ const tapIn = async (req, res) => {
             });
         }
 
-        // Cari RFID yang aktif 
         const rfid = await prisma.rFID.findFirst({
             where: {
                 uid_rfid,
@@ -26,11 +24,7 @@ const tapIn = async (req, res) => {
             include: {
                 siswa: {
                     include: {
-                        kelas: {
-                            include: {
-                                jurusan: true
-                            }
-                        },
+                        kelas: true,
                         orang_tua: true
                     }
                 }
@@ -51,11 +45,9 @@ const tapIn = async (req, res) => {
             });
         }
 
-        // Set tanggal hari ini (tanpa jam)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // Cek apakah sudah tap in hari ini
         const existingAbsensi = await prisma.absensiSiswa.findFirst({
             where: {
                 siswa_id: rfid.siswa.id,
@@ -72,10 +64,8 @@ const tapIn = async (req, res) => {
             });
         }
 
-        // Dapatkan nama hari ini
         const hariIni = validateHari(new Date());
 
-        // Cek jika hari Minggu
         if (hariIni === 'MINGGU') {
             return res.status(400).json({
                 success: false,
@@ -83,7 +73,6 @@ const tapIn = async (req, res) => {
             });
         }
 
-        // Ambil jadwal pertama hari ini untuk kelas siswa
         const jadwalPertama = await prisma.jadwal.findFirst({
             where: {
                 kelas_id: rfid.siswa.kelas_id,
@@ -101,20 +90,18 @@ const tapIn = async (req, res) => {
         if (!jadwalPertama) {
             return res.status(404).json({
                 success: false,
-                message: `Tidak ada jadwal untuk kelas ${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan.nama_jurusan} di hari ${hariIni}`
+                message: `Tidak ada jadwal untuk kelas ${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan} di hari ${hariIni}`
             });
         }
 
         const tapInTime = new Date();
 
-        // Tentukan status kedatangan berdasarkan jam mulai jadwal pertama
         const jamMulai = new Date(jadwalPertama.jam_mulai);
         const jamMulaiToday = new Date();
         jamMulaiToday.setHours(jamMulai.getHours(), jamMulai.getMinutes(), 0, 0);
 
         const statusTapIn = tapInTime <= jamMulaiToday ? 'TEPAT_WAKTU' : 'TELAMBAT';
 
-        // Buat absensi baru
         const absensi = await prisma.absensiSiswa.create({
             data: {
                 siswa_id: rfid.siswa.id,
@@ -130,11 +117,7 @@ const tapIn = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                }
+                                jurusan: true
                             }
                         }
                     }
@@ -147,11 +130,10 @@ const tapIn = async (req, res) => {
             }
         });
 
-        // kirim notifikasi telegram
         if (rfid.siswa.kelas && rfid.siswa.kelas.telegram_group_id) {
             const notifData = {
                 nama: rfid.siswa.nama,
-                kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan.nama_jurusan}`,
+                kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}`,
                 status_tapin: statusTapIn,
                 tap_in: formatTime(tapInTime),
                 tanggal: formatDate(today),
@@ -163,7 +145,6 @@ const tapIn = async (req, res) => {
                 });
         }
 
-        // Format response
         const formattedAbsensi = {
             id: absensi.id,
             siswa: absensi.siswa,
@@ -202,7 +183,6 @@ const tapOut = async (req, res) => {
     try {
         const { uid_rfid } = req.body;
 
-        // Validasi input
         if (!uid_rfid) {
             return res.status(400).json({
                 success: false,
@@ -210,7 +190,6 @@ const tapOut = async (req, res) => {
             });
         }
 
-        // Cari RFID yang aktif - INCLUDE ORANG TUA
         const rfid = await prisma.rFID.findFirst({
             where: {
                 uid_rfid,
@@ -220,11 +199,7 @@ const tapOut = async (req, res) => {
             include: {
                 siswa: {
                     include: {
-                        kelas: {
-                            include: {
-                                jurusan: true
-                            }
-                        },
+                        kelas: true,
                         orang_tua: true
                     }
                 }
@@ -241,7 +216,6 @@ const tapOut = async (req, res) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // Cek apakah sudah ada tap_in hari ini
         const absensiTapIn = await prisma.absensiSiswa.findFirst({
             where: {
                 siswa_id: rfid.siswa_id,
@@ -258,7 +232,6 @@ const tapOut = async (req, res) => {
             });
         }
 
-        // Cek apakah sudah tap out hari ini
         const existingTapOut = await prisma.absensiSiswa.findFirst({
             where: {
                 siswa_id: rfid.siswa_id,
@@ -277,7 +250,6 @@ const tapOut = async (req, res) => {
 
         const tapOutTime = new Date();
 
-        // Update tap out pada record yang sudah ada
         const updatedAbsensi = await prisma.absensiSiswa.update({
             where: { id: absensiTapIn.id },
             data: {
@@ -290,11 +262,7 @@ const tapOut = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                }
+                                jurusan: true
                             }
                         }
                     }
@@ -307,22 +275,20 @@ const tapOut = async (req, res) => {
             }
         });
 
-        // kirim notifikasi telegram
         if (rfid.siswa.kelas && rfid.siswa.kelas.telegram_group_id) {
             const notifData = {
                 nama: rfid.siswa.nama,
-                kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan.nama_jurusan}`,
-                tap_out: formatTime(tapOutTime),     
+                kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}`,
+                tap_out: formatTime(tapOutTime),
                 tanggal: formatDate(today),
             };
 
-            sendTapOutNotification(rfid.siswa.kelas.telegram_group_id, notifData)   
+            sendTapOutNotification(rfid.siswa.kelas.telegram_group_id, notifData)
                 .catch(error => {
                     console.error('Failed to send Telegram notification:', error);
                 });
         }
 
-        // Format response
         const formattedAbsensi = {
             id: updatedAbsensi.id,
             siswa: updatedAbsensi.siswa,
@@ -359,10 +325,7 @@ const getAllAbsensi = async (req, res) => {
 
         const { tanggal, siswa_id, kelas_id, status_tapin } = req.query;
 
-        // Build where condition
-        const whereCondition = {
-            deleted_at: null
-        };
+        const whereCondition = { deleted_at: null };
 
         if (tanggal) {
             const date = new Date(tanggal);
@@ -370,9 +333,7 @@ const getAllAbsensi = async (req, res) => {
             whereCondition.tanggal = date;
         }
 
-        if (siswa_id) {
-            whereCondition.siswa_id = siswa_id;
-        }
+        if (siswa_id) whereCondition.siswa_id = siswa_id;
 
         if (kelas_id) {
             whereCondition.siswa = {
@@ -380,18 +341,14 @@ const getAllAbsensi = async (req, res) => {
             };
         }
 
-        if (status_tapin) {
-            whereCondition.status_tapin = status_tapin;
-        }
+        if (status_tapin) whereCondition.status_tapin = status_tapin;
 
         const [data, total] = await Promise.all([
             prisma.absensiSiswa.findMany({
                 where: whereCondition,
                 skip,
                 take: limit,
-                orderBy: {
-                    created_at: "desc"
-                },
+                orderBy: { created_at: "desc" },
                 include: {
                     siswa: {
                         select: {
@@ -399,11 +356,7 @@ const getAllAbsensi = async (req, res) => {
                             kelas: {
                                 select: {
                                     kelas: true,
-                                    jurusan: {
-                                        select: {
-                                            nama_jurusan: true
-                                        }
-                                    },
+                                    jurusan: true,
                                     tahun: {
                                         select: {
                                             tahun_ajaran: true,
@@ -415,16 +368,13 @@ const getAllAbsensi = async (req, res) => {
                         }
                     },
                     rfid: {
-                        select: {
-                            uid_rfid: true
-                        }
+                        select: { uid_rfid: true }
                     }
                 }
             }),
             prisma.absensiSiswa.count({ where: whereCondition })
         ]);
 
-        // Format data
         const formattedData = data.map(absensi => ({
             id: absensi.id,
             siswa: absensi.siswa,
@@ -476,11 +426,7 @@ const getAbsensiById = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                },
+                                jurusan: true,
                                 tahun: {
                                     select: {
                                         tahun_ajaran: true,
@@ -492,14 +438,10 @@ const getAbsensiById = async (req, res) => {
                     }
                 },
                 rfid: {
-                    select: {
-                        uid_rfid: true
-                    }
+                    select: { uid_rfid: true }
                 },
                 detail: {
-                    where: {
-                        deleted_at: null
-                    },
+                    where: { deleted_at: null },
                     include: {
                         jadwal: {
                             include: {
@@ -524,7 +466,6 @@ const getAbsensiById = async (req, res) => {
             });
         }
 
-        // Format detail absensi
         const formattedDetail = absensi.detail.map(detail => ({
             id: detail.id,
             status: detail.status,
@@ -540,7 +481,6 @@ const getAbsensiById = async (req, res) => {
             }
         }));
 
-        // Format response
         const formattedAbsensi = {
             id: absensi.id,
             siswa: absensi.siswa,
@@ -605,19 +545,13 @@ const getLaporanHarian = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                }
+                                jurusan: true
                             }
                         }
                     }
                 }
             },
-            orderBy: {
-                tap_in: 'asc'
-            }
+            orderBy: { tap_in: 'asc' }
         });
 
         const summary = {
@@ -628,7 +562,6 @@ const getLaporanHarian = async (req, res) => {
             belum_tap_out: absensiList.filter(a => a.tap_in && !a.tap_out).length
         };
 
-        // Format data
         const formattedData = absensiList.map(absensi => ({
             id: absensi.id,
             siswa: absensi.siswa,
@@ -661,7 +594,6 @@ const updateAbsensi = async (req, res) => {
         const { id } = req.params;
         const { tap_in, tap_out, status_tapin } = req.body;
 
-        // Validasi id
         if (!id || isNaN(parseInt(id))) {
             return res.status(400).json({
                 success: false,
@@ -669,7 +601,6 @@ const updateAbsensi = async (req, res) => {
             });
         }
 
-        // Cek absensi
         const existingAbsensi = await prisma.absensiSiswa.findFirst({
             where: {
                 id: parseInt(id),
@@ -684,16 +615,10 @@ const updateAbsensi = async (req, res) => {
             });
         }
 
-        // Build update data
         const updateData = {};
 
-        if (tap_in !== undefined) {
-            updateData.tap_in = new Date(tap_in);
-        }
-
-        if (tap_out !== undefined) {
-            updateData.tap_out = new Date(tap_out);
-        }
+        if (tap_in !== undefined) updateData.tap_in = new Date(tap_in);
+        if (tap_out !== undefined) updateData.tap_out = new Date(tap_out);
 
         if (status_tapin !== undefined) {
             if (!['TEPAT_WAKTU', 'TELAMBAT'].includes(status_tapin)) {
@@ -715,24 +640,17 @@ const updateAbsensi = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                }
+                                jurusan: true
                             }
                         }
                     }
                 },
                 rfid: {
-                    select: {
-                        uid_rfid: true
-                    }
+                    select: { uid_rfid: true }
                 }
             }
         });
 
-        // Format response
         const formattedAbsensi = {
             id: updatedAbsensi.id,
             siswa: updatedAbsensi.siswa,
@@ -765,7 +683,6 @@ const deleteAbsensi = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Validasi id
         if (!id || isNaN(parseInt(id))) {
             return res.status(400).json({
                 success: false,
@@ -773,7 +690,6 @@ const deleteAbsensi = async (req, res) => {
             });
         }
 
-        // Cek absensi
         const existingAbsensi = await prisma.absensiSiswa.findFirst({
             where: {
                 id: parseInt(id),
@@ -788,23 +704,17 @@ const deleteAbsensi = async (req, res) => {
             });
         }
 
-        // Soft delete detail absensi terlebih dahulu
         await prisma.detailAbsensiSiswa.updateMany({
             where: {
                 absensi_id: parseInt(id),
                 deleted_at: null
             },
-            data: {
-                deleted_at: new Date()
-            }
+            data: { deleted_at: new Date() }
         });
 
-        // Soft delete absensi
         await prisma.absensiSiswa.update({
             where: { id: parseInt(id) },
-            data: {
-                deleted_at: new Date()
-            }
+            data: { deleted_at: new Date() }
         });
 
         return res.status(200).json({

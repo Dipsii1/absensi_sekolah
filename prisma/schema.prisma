@@ -246,41 +246,25 @@ model MataPelajaran {
 model Kelas {
   id                Int     @id @default(autoincrement())
   kelas             String  @db.VarChar(10)
-  jurusan_id        Int
+  jurusan           String  @db.VarChar(100)
   tahun_ajaran_id   Int
   telegram_group_id String? @db.VarChar(50)
   walas_id          Int?
 
-  jurusan Jurusan  @relation(fields: [jurusan_id], references: [id], onDelete: Restrict)
-  tahun   Tahun    @relation(fields: [tahun_ajaran_id], references: [id], onDelete: Restrict)
-  walas   Guru?    @relation("WaliKelas", fields: [walas_id], references: [id], onDelete: Restrict)
-  siswa   Siswa[]
-  jadwal  Jadwal[]
+  tahun  Tahun    @relation(fields: [tahun_ajaran_id], references: [id], onDelete: Restrict)
+  walas  Guru?    @relation("WaliKelas", fields: [walas_id], references: [id], onDelete: Restrict)
+  siswa  Siswa[]
+  jadwal Jadwal[]
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
-  @@unique([kelas, jurusan_id, tahun_ajaran_id])
-  @@index([jurusan_id])
+  @@unique([kelas, jurusan, tahun_ajaran_id])
   @@index([tahun_ajaran_id])
   @@index([deleted_at])
   @@index([walas_id])
   @@map("kelas")
-}
-
-model Jurusan {
-  id           Int    @id @default(autoincrement())
-  nama_jurusan String @unique @db.VarChar(100)
-
-  kelas Kelas[]
-
-  created_at DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at DateTime  @updatedAt @db.Timestamptz(6)
-  deleted_at DateTime? @db.Timestamptz(6)
-
-  @@index([deleted_at])
-  @@map("jurusan")
 }
 
 model Tahun {

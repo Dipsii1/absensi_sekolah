@@ -2,7 +2,6 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 const seedRole = require("./seeders/roleSeeder");
-const seedJurusan = require("./seeders/jurusanSeeder");
 const seedTahun = require("./seeders/tahunSeeder");
 const seedGuru = require("./seeders/guruSeeder");
 const seedKelas = require("./seeders/kelasSeeder");
@@ -17,19 +16,17 @@ const seedUser = require("./seeders/userSeeder");
 async function main() {
     console.log("🌱 Mulai seeding...\n");
 
-    const roleMap = await seedRole(prisma);  
-    const jurusanList = await seedJurusan(prisma);
+    const roleMap = await seedRole(prisma);
     const { tahunList, tahunAktif } = await seedTahun(prisma);
     const guruList = await seedGuru(prisma);
-    const kelasList = await seedKelas(prisma, jurusanList, tahunAktif, guruList);
+    const kelasList = await seedKelas(prisma, tahunAktif, guruList);
     const mapelList = await seedMapel(prisma);
-    const jadwalList = await seedJadwal(prisma, kelasList, mapelList, guruList, jurusanList);
+    const jadwalList = await seedJadwal(prisma, kelasList, mapelList, guruList);
     const orangTuaList = await seedOrangTua(prisma);
     const siswaList = await seedSiswa(prisma, kelasList, orangTuaList);
     const rfidSiswa = await seedRFID(prisma, siswaList);
     await seedAbsensi(prisma, siswaList);
 
-     
     await seedUser(prisma, roleMap, guruList);
 
     console.log("\n✅ Seeding selesai!");

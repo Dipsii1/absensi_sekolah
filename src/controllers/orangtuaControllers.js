@@ -24,11 +24,7 @@ const getAllOrangTua = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                }
+                                jurusan: true
                             }
                         }
                     }
@@ -74,11 +70,7 @@ const getOrangTuaById = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                },
+                                jurusan: true,
                                 tahun: {
                                     select: {
                                         tahun_ajaran: true

@@ -87,7 +87,7 @@ const absensiByGuru = async (req, res) => {
 
         const targetSiswaList = absensi_ids?.length
             ? siswaList.filter((s) => {
-                return true; 
+                return true;
             })
             : siswaList;
 
@@ -220,9 +220,7 @@ const updateStatusAbsensiManual = async (req, res) => {
                 jadwal: {
                     include: {
                         mata_pelajaran: true,
-                        kelas: {
-                            include: { jurusan: true }
-                        }
+                        kelas: true
                     }
                 }
             }
@@ -321,7 +319,6 @@ const getRekapAbsensiSiswa = async (req, res) => {
                                 nama: true,
                                 kelas: {
                                     include: {
-                                        jurusan: true,
                                         tahun: true
                                     }
                                 }
@@ -414,7 +411,6 @@ const getRekapAbsensiKelas = async (req, res) => {
                 deleted_at: null
             },
             include: {
-                jurusan: true,
                 tahun: true,
                 siswa: {
                     where: { deleted_at: null },
@@ -490,7 +486,7 @@ const getRekapAbsensiKelas = async (req, res) => {
             data: {
                 kelas: {
                     id: kelas.id,
-                    nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`,
+                    nama: `${kelas.kelas} ${kelas.jurusan}`,
                     tahun_ajaran: kelas.tahun.tahun_ajaran
                 },
                 tanggal: formatDate(targetDate),
@@ -554,7 +550,6 @@ const getRekapAbsensiSiswaYearly = async (req, res) => {
                         nama: true,
                         kelas: {
                             include: {
-                                jurusan: true,
                                 tahun: true
                             }
                         }
@@ -708,7 +703,6 @@ const getRekapAbsensiByJadwal = async (req, res) => {
                 },
                 kelas: {
                     include: {
-                        jurusan: true,
                         siswa: {
                             where: { deleted_at: null },
                             select: { id: true, nama: true }
@@ -789,7 +783,7 @@ const getRekapAbsensiByJadwal = async (req, res) => {
                     jam_selesai: formatTime(jadwal.jam_selesai),
                     mata_pelajaran: jadwal.mata_pelajaran.nama_mapel,
                     guru: jadwal.guru,
-                    kelas: `${jadwal.kelas.kelas} ${jadwal.kelas.jurusan.nama_jurusan}`,
+                    kelas: `${jadwal.kelas.kelas} ${jadwal.kelas.jurusan}`,
                     tanggal: formatDate(date)
                 },
                 rekap_siswa: rekapSiswa,
@@ -829,7 +823,6 @@ const GetRekapAbsensiKelasTahunan = async (req, res) => {
                 deleted_at: null
             },
             include: {
-                jurusan: true,
                 tahun: true,
                 siswa: {
                     where: { deleted_at: null },
@@ -915,7 +908,7 @@ const GetRekapAbsensiKelasTahunan = async (req, res) => {
             data: {
                 kelas: {
                     id: kelas.id,
-                    nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`,
+                    nama: `${kelas.kelas} ${kelas.jurusan}`,
                     tahun_ajaran: kelas.tahun.tahun_ajaran
                 },
                 tahun: tahunInt,
@@ -972,7 +965,6 @@ const GetRekapAbsensiKelasSemester = async (req, res) => {
                 deleted_at: null
             },
             include: {
-                jurusan: true,
                 tahun: true,
                 siswa: {
                     where: { deleted_at: null },
@@ -1055,7 +1047,7 @@ const GetRekapAbsensiKelasSemester = async (req, res) => {
             data: {
                 kelas: {
                     id: kelas.id,
-                    nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`,
+                    nama: `${kelas.kelas} ${kelas.jurusan}`,
                     tahun_ajaran: kelas.tahun.tahun_ajaran
                 },
                 tahun: tahunInt,
@@ -1156,7 +1148,6 @@ const pratinjauWalas = async (req, res) => {
                 deleted_at: null
             },
             include: {
-                jurusan: true,
                 tahun: true,
                 siswa: {
                     where: { deleted_at: null },
@@ -1246,11 +1237,10 @@ const pratinjauWalas = async (req, res) => {
             data: {
                 kelas: {
                     id: kelas.id,
-                    nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`,
+                    nama: `${kelas.kelas} ${kelas.jurusan}`,
                     tahun_ajaran: kelas.tahun.tahun_ajaran
                 },
                 tanggal: formatDate(targetDate),
-                // FIX #3: validateHari(targetDate) → getHariFromDate(targetDate)
                 hari: getHariFromDate(targetDate),
                 summary,
                 daftar_siswa: daftarSiswa

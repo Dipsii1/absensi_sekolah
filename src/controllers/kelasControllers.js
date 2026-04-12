@@ -20,12 +20,6 @@ const getAllKelas = async (req, res) => {
                     created_at: "desc"
                 },
                 include: {
-                    jurusan: {
-                        select: {
-                            id: true,
-                            nama_jurusan: true
-                        }
-                    },
                     tahun: {
                         select: {
                             id: true,
@@ -83,12 +77,6 @@ const getKelasById = async (req, res) => {
                 deleted_at: null
             },
             include: {
-                jurusan: {
-                    select: {
-                        id: true,
-                        nama_jurusan: true
-                    }
-                },
                 tahun: {
                     select: {
                         id: true,
@@ -147,13 +135,13 @@ const createKelas = async (req, res) => {
     try {
         const {
             kelas,
-            jurusan_id,
+            jurusan,
             tahun_ajaran_id,
             walas_id
         } = req.body;
 
         // Validasi input wajib
-        if (!kelas || !jurusan_id || !tahun_ajaran_id) {
+        if (!kelas || !jurusan || !tahun_ajaran_id) {
             return res.status(400).json({
                 success: false,
                 message: "Kelas, jurusan, dan tahun ajaran wajib diisi"
@@ -168,11 +156,11 @@ const createKelas = async (req, res) => {
             });
         }
 
-        // Validasi jurusan_id harus angka
-        if (isNaN(parseInt(jurusan_id))) {
+        // Validasi jurusan tidak boleh kosong
+        if (jurusan.trim().length === 0) {
             return res.status(400).json({
                 success: false,
-                message: "Jurusan ID harus berupa angka"
+                message: "Nama jurusan tidak boleh kosong"
             });
         }
 
@@ -189,21 +177,6 @@ const createKelas = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "Walas ID harus berupa angka"
-            });
-        }
-
-        // Validasi jurusan exists
-        const jurusanExists = await prisma.jurusan.findFirst({
-            where: {
-                id: parseInt(jurusan_id),
-                deleted_at: null
-            }
-        });
-
-        if (!jurusanExists) {
-            return res.status(404).json({
-                success: false,
-                message: "Jurusan tidak ditemukan"
             });
         }
 
@@ -259,7 +232,7 @@ const createKelas = async (req, res) => {
         const existingKelas = await prisma.kelas.findFirst({
             where: {
                 kelas: kelas.trim(),
-                jurusan_id: parseInt(jurusan_id),
+                jurusan: jurusan.trim(),
                 tahun_ajaran_id: parseInt(tahun_ajaran_id),
                 deleted_at: null
             }
@@ -276,17 +249,11 @@ const createKelas = async (req, res) => {
         const newKelas = await prisma.kelas.create({
             data: {
                 kelas: kelas.trim(),
-                jurusan_id: parseInt(jurusan_id),
+                jurusan: jurusan.trim(),
                 tahun_ajaran_id: parseInt(tahun_ajaran_id),
                 walas_id: walas_id ? parseInt(walas_id) : null
             },
             include: {
-                jurusan: {
-                    select: {
-                        id: true,
-                        nama_jurusan: true
-                    }
-                },
                 tahun: {
                     select: {
                         id: true,
@@ -325,13 +292,13 @@ const updateKelas = async (req, res) => {
         const { id } = req.params;
         const {
             kelas,
-            jurusan_id,
+            jurusan,
             tahun_ajaran_id,
             walas_id
         } = req.body;
 
         // Validasi input wajib
-        if (!kelas || !jurusan_id || !tahun_ajaran_id) {
+        if (!kelas || !jurusan || !tahun_ajaran_id) {
             return res.status(400).json({
                 success: false,
                 message: "Kelas, jurusan, dan tahun ajaran wajib diisi"
@@ -346,11 +313,11 @@ const updateKelas = async (req, res) => {
             });
         }
 
-        // Validasi jurusan_id harus angka
-        if (isNaN(parseInt(jurusan_id))) {
+        // Validasi jurusan tidak boleh kosong
+        if (jurusan.trim().length === 0) {
             return res.status(400).json({
                 success: false,
-                message: "Jurusan ID harus berupa angka"
+                message: "Nama jurusan tidak boleh kosong"
             });
         }
 
@@ -385,21 +352,6 @@ const updateKelas = async (req, res) => {
             });
         }
 
-        // Validasi jurusan exists
-        const jurusanExists = await prisma.jurusan.findFirst({
-            where: {
-                id: parseInt(jurusan_id),
-                deleted_at: null
-            }
-        });
-
-        if (!jurusanExists) {
-            return res.status(404).json({
-                success: false,
-                message: "Jurusan tidak ditemukan"
-            });
-        }
-
         // Validasi tahun ajaran exists
         const tahunExists = await prisma.tahun.findFirst({
             where: {
@@ -415,7 +367,7 @@ const updateKelas = async (req, res) => {
             });
         }
 
-        // Validasi walas exists 
+        // Validasi walas exists + cek konflik (jika diberikan)
         if (walas_id) {
             const walasExists = await prisma.guru.findFirst({
                 where: {
@@ -455,7 +407,7 @@ const updateKelas = async (req, res) => {
         const duplicateKelas = await prisma.kelas.findFirst({
             where: {
                 kelas: kelas.trim(),
-                jurusan_id: parseInt(jurusan_id),
+                jurusan: jurusan.trim(),
                 tahun_ajaran_id: parseInt(tahun_ajaran_id),
                 deleted_at: null,
                 NOT: {
@@ -478,21 +430,14 @@ const updateKelas = async (req, res) => {
             },
             data: {
                 kelas: kelas.trim(),
-                jurusan_id: parseInt(jurusan_id),
+                jurusan: jurusan.trim(),
                 tahun_ajaran_id: parseInt(tahun_ajaran_id),
-
                 walas_id: walas_id === null ? null
                     : walas_id ? parseInt(walas_id)
                     : existingKelas.walas_id,
                 updated_at: new Date()
             },
             include: {
-                jurusan: {
-                    select: {
-                        id: true,
-                        nama_jurusan: true
-                    }
-                },
                 tahun: {
                     select: {
                         id: true,
@@ -530,7 +475,6 @@ const deleteKelas = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Cek kelas apakah ada
         const existingKelas = await prisma.kelas.findFirst({
             where: {
                 id: parseInt(id),
@@ -545,7 +489,6 @@ const deleteKelas = async (req, res) => {
             });
         }
 
-        // Cek apakah masih ada siswa di kelas ini
         const hasSiswa = await prisma.siswa.count({
             where: {
                 kelas_id: parseInt(id),
@@ -560,7 +503,6 @@ const deleteKelas = async (req, res) => {
             });
         }
 
-        // Cek apakah masih ada jadwal di kelas ini
         const hasJadwal = await prisma.jadwal.count({
             where: {
                 kelas_id: parseInt(id),
@@ -575,7 +517,6 @@ const deleteKelas = async (req, res) => {
             });
         }
 
-        // Soft delete
         await prisma.kelas.update({
             where: {
                 id: parseInt(id)
@@ -642,7 +583,6 @@ const assignWalas = async (req, res) => {
                 });
             }
 
-            // 1 guru hanya boleh jadi walas 1 kelas per tahun ajaran
             const konflik = await prisma.kelas.findFirst({
                 where: {
                     walas_id: parseInt(walas_id),
@@ -670,12 +610,6 @@ const assignWalas = async (req, res) => {
                 walas_id: walas_id ? parseInt(walas_id) : null
             },
             include: {
-                jurusan: {
-                    select: {
-                        id: true,
-                        nama_jurusan: true
-                    }
-                },
                 tahun: {
                     select: {
                         id: true,

@@ -11,7 +11,6 @@ require('./src/services/telegramServices');
 
 var indexRouter = require('./src/routes/index');
 var tahunRoutes = require('./src/routes/tahunRoutes');
-var jurusanRoutes = require('./src/routes/jurusanRoutes');
 var mapelRoutes = require('./src/routes/mapelRoutes');
 var guruRoutes = require('./src/routes/guruRoutes');
 var orangTuaRoutes = require('./src/routes/orangTuaRoutes')
@@ -23,7 +22,6 @@ var absensiSiswaRoutes = require('./src/routes/absensiSiswaRoutes');
 var detailAbsensi = require('./src/routes/detailAbsensiRoutes')
 var users = require('./src/routes/usersRoutes');
 var auth = require('./src/routes/authRoutes');
-var exportExcelRoutes = require('./src/routes/exportExcelRoutes');
 
 
 // cron job
@@ -56,13 +54,11 @@ app.use('/api/v1/guru', guruRoutes);
 app.use('/api/v1/orang-tua', orangTuaRoutes)
 app.use('/api/v1/kelas', kelasRoutes)
 app.use('/api/v1/jadwal', jadwalRoutes)
-app.use('/api/v1/jurusan', jurusanRoutes);
 app.use('/api/v1/rfid', rfidRoutes);
 app.use('/api/v1/absensi-siswa', absensiSiswaRoutes);
 app.use('/api/v1/detail-absensi', detailAbsensi)
 app.use('/api/v1/users', users);
 app.use('/api/v1/auth', auth);
-app.use('/api/v1/export', exportExcelRoutes);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

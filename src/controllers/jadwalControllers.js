@@ -43,11 +43,7 @@ const getAllJadwal = async (req, res) => {
                         select: {
                             id: true,
                             kelas: true,
-                            jurusan: {
-                                select: {
-                                    nama_jurusan: true
-                                }
-                            },
+                            jurusan: true,
                             tahun: {
                                 select: {
                                     tahun_ajaran: true
@@ -325,11 +321,7 @@ const createJadwal = async (req, res) => {
                 kelas: {
                     select: {
                         kelas: true,
-                        jurusan: {
-                            select: {
-                                nama_jurusan: true
-                            }
-                        }
+                        jurusan: true,
                     }
                 },
                 mata_pelajaran: {
@@ -575,11 +567,7 @@ const updateJadwal = async (req, res) => {
                 kelas: {
                     select: {
                         kelas: true,
-                        jurusan: {
-                            select: {
-                                nama_jurusan: true
-                            }
-                        }
+                        jurusan: true,
                     }
                 },
                 mata_pelajaran: {
