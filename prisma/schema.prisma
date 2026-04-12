@@ -14,8 +14,15 @@ enum StatusAbsensi {
   ALPHA
 }
 
+enum StatusHarian {
+  HADIR
+  IZIN
+  SAKIT
+  ALPHA
+}
+
 enum StatusKedatangan {
-  TELAMBAT
+  TERLAMBAT
   TEPAT_WAKTU
 }
 
@@ -63,8 +70,9 @@ model User {
 model userRole {
   user_id String @db.Uuid
   role_id Int
-  user    User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  role    Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role    Role   @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
   @@id([user_id, role_id])
   @@map("user_roles")
 }
@@ -113,9 +121,9 @@ model OrangTua {
 }
 
 model RFID {
-  id        Int     @id @default(autoincrement())
-  uid_rfid  String  @unique @db.VarChar(50)
-  siswa_id  String  @db.Uuid
+  id       Int     @id @default(autoincrement())
+  uid_rfid String  @unique @db.VarChar(50)
+  siswa_id String  @db.Uuid
   is_active Boolean @default(true)
 
   siswa   Siswa          @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
@@ -132,13 +140,15 @@ model RFID {
 }
 
 model AbsensiSiswa {
-  id           Int               @id @default(autoincrement())
-  siswa_id     String            @db.Uuid
-  tanggal      DateTime          @db.Date
-  tap_in       DateTime?         @db.Timestamptz(6)
-  tap_out      DateTime?         @db.Timestamptz(6)
-  rfid_id      Int?
-  status_tapin StatusKedatangan?
+  id              Int               @id @default(autoincrement())
+  siswa_id        String            @db.Uuid
+  tanggal         DateTime          @db.Date
+  tap_in          DateTime?         @db.Timestamptz(6)
+  tap_out         DateTime?         @db.Timestamptz(6)
+  rfid_id         Int?
+  status_tapin    StatusKedatangan?
+
+  status_harian   StatusHarian?
 
   siswa  Siswa                @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
   rfid   RFID?                @relation(fields: [rfid_id], references: [id], onDelete: SetNull)
@@ -152,6 +162,7 @@ model AbsensiSiswa {
   @@index([tanggal])
   @@index([rfid_id])
   @@index([status_tapin])
+  @@index([status_harian])
   @@index([deleted_at])
   @@map("absensi_siswa")
 }
