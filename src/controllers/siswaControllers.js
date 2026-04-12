@@ -6,11 +6,22 @@ const getAllSiswa = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
-        
-        // mencari data yang tidak di hapus
+        const { kelas_id, walas_id } = req.query;
+
         const whereCondition = {
             deleted_at: null
         };
+
+        if (kelas_id) {
+            whereCondition.kelas_id = parseInt(kelas_id);
+        }
+
+        if (walas_id) {
+            whereCondition.kelas = {
+                walas_id: parseInt(walas_id),
+                deleted_at: null
+            };
+        }
 
         const [data, total] = await Promise.all([
             prisma.siswa.findMany({
@@ -74,11 +85,10 @@ const getAllSiswa = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
-            message: error.message
+            error: error.message
         });
     }
 };
-
 // get siswa by ID
 const getSiswaById = async (req, res) => {
     try {

@@ -6,6 +6,10 @@ require('dotenv').config();
 // get all orang tua
 const getAllOrangTua = async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
         const orangTua = await prisma.orangTua.findMany({
             where: {
                 deleted_at: null
@@ -13,6 +17,8 @@ const getAllOrangTua = async (req, res) => {
             orderBy: {
                 created_at: "desc"
             },
+            skip: skip,
+            take: limit,
             include: {
                 siswa: {
                     where: {
@@ -30,19 +36,30 @@ const getAllOrangTua = async (req, res) => {
                     }
                 }
             }
-        })
+        });
+
+        const total = await prisma.orangTua.count({
+            where: {
+                deleted_at: null
+            }
+        });
 
         return res.status(200).json({
             success: true,
             message: "Berhasil mendapatkan data orang tua",
-            data: orangTua
+            data: orangTua,
+            pagination: {
+                total: total,
+                page: page,
+                limit: limit,
+                totalPages: Math.ceil(total / limit)
+            }
         });
+
     } catch (error) {
-        console.error("Error getting orang tua:", error);
         return res.status(500).json({
             success: false,
-            message: "Terjadi kesalahan pada server",
-            error: error.message
+            message: error.message
         });
     }
 };
