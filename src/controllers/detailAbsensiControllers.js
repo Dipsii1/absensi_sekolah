@@ -769,7 +769,7 @@ const getRekapAbsensiByJadwal = async (req, res) => {
             izin: rekapSiswa.filter((s) => s.status_mapel === "IZIN").length,
             sakit: rekapSiswa.filter((s) => s.status_mapel === "SAKIT").length,
             tepat_waktu: rekapSiswa.filter((s) => s.status_tapin === "TEPAT_WAKTU").length,
-            telambat: rekapSiswa.filter((s) => s.status_tapin === "TELAMBAT").length
+            terlambat: rekapSiswa.filter((s) => s.status_tapin === "TERLAMBAT").length
         };
 
         return res.status(200).json({

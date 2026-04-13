@@ -100,7 +100,7 @@ const tapIn = async (req, res) => {
         const jamMulaiToday = new Date();
         jamMulaiToday.setHours(jamMulai.getHours(), jamMulai.getMinutes(), 0, 0);
 
-        const statusTapIn = tapInTime <= jamMulaiToday ? 'TEPAT_WAKTU' : 'TELAMBAT';
+        const statusTapIn = tapInTime <= jamMulaiToday ? 'TEPAT_WAKTU' : 'TERLAMBAT';
 
         const absensi = await prisma.absensiSiswa.create({
             data: {
@@ -557,7 +557,7 @@ const getLaporanHarian = async (req, res) => {
         const summary = {
             total: absensiList.length,
             tepat_waktu: absensiList.filter(a => a.status_tapin === 'TEPAT_WAKTU').length,
-            telambat: absensiList.filter(a => a.status_tapin === 'TELAMBAT').length,
+            terlambat: absensiList.filter(a => a.status_tapin === 'TERLAMBAT').length,
             belum_tap_in: absensiList.filter(a => !a.tap_in).length,
             belum_tap_out: absensiList.filter(a => a.tap_in && !a.tap_out).length
         };
@@ -621,7 +621,7 @@ const updateAbsensi = async (req, res) => {
         if (tap_out !== undefined) updateData.tap_out = new Date(tap_out);
 
         if (status_tapin !== undefined) {
-            if (!['TEPAT_WAKTU', 'TELAMBAT'].includes(status_tapin)) {
+            if (!['TEPAT_WAKTU', 'TERLAMBAT'].includes(status_tapin)) {
                 return res.status(400).json({
                     success: false,
                     message: "Status tap in tidak valid"

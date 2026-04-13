@@ -23,7 +23,7 @@ module.exports = async (prisma, siswaList) => {
         tapInDate.setHours(6, 45 + i * 5, 0, 0);
 
         const statusTapIn =
-            tapInDate.getHours() < 7 ? "TEPAT_WAKTU" : "TELAMBAT";
+            tapInDate.getHours() < 7 ? "TEPAT_WAKTU" : "TERLAMBAT";
 
         const tapOutDate = new Date(today);
         tapOutDate.setHours(14, i * 5, 0, 0);
