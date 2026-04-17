@@ -1,7 +1,6 @@
 const prisma = require("../config/prisma");
 const { sendTapInNotification, sendTapOutNotification } = require("../services/telegramServices");
-const { formatDate, formatTime, formatDateTime, validateHari } = require("../helper/date");
-
+const { formatDate, formatTime, formatDateTime, getHariFromDate, getTodayWIB, getTanggalRangeWIB } = require("../helper/date");
 
 // Tap In 
 const tapIn = async (req, res) => {
@@ -45,13 +44,19 @@ const tapIn = async (req, res) => {
             });
         }
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // FIX: pakai getTodayWIB() dan getTanggalRangeWIB() agar timezone WIB aman
+        const today = getTodayWIB();
+        const { start, end } = getTanggalRangeWIB(
+            new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
+        );
 
         const existingAbsensi = await prisma.absensiSiswa.findFirst({
             where: {
                 siswa_id: rfid.siswa.id,
-                tanggal: today,
+                tanggal: {
+                    gte: start,
+                    lte: end
+                },
                 tap_in: { not: null },
                 deleted_at: null
             }
@@ -64,7 +69,7 @@ const tapIn = async (req, res) => {
             });
         }
 
-        const hariIni = validateHari(new Date());
+        const hariIni = getHariFromDate(new Date());
 
         if (hariIni === 'MINGGU') {
             return res.status(400).json({
@@ -105,7 +110,7 @@ const tapIn = async (req, res) => {
         const absensi = await prisma.absensiSiswa.create({
             data: {
                 siswa_id: rfid.siswa.id,
-                tanggal: today,
+                tanggal: today,           // FIX: midnight WIB
                 tap_in: tapInTime,
                 rfid_id: rfid.id,
                 status_tapin: statusTapIn
@@ -213,13 +218,18 @@ const tapOut = async (req, res) => {
             });
         }
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // FIX: pakai range WIB
+        const { start, end } = getTanggalRangeWIB(
+            new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
+        );
 
         const absensiTapIn = await prisma.absensiSiswa.findFirst({
             where: {
                 siswa_id: rfid.siswa_id,
-                tanggal: today,
+                tanggal: {
+                    gte: start,
+                    lte: end
+                },
                 tap_in: { not: null },
                 deleted_at: null
             }
@@ -235,7 +245,10 @@ const tapOut = async (req, res) => {
         const existingTapOut = await prisma.absensiSiswa.findFirst({
             where: {
                 siswa_id: rfid.siswa_id,
-                tanggal: today,
+                tanggal: {
+                    gte: start,
+                    lte: end
+                },
                 tap_out: { not: null },
                 deleted_at: null
             }
@@ -280,7 +293,7 @@ const tapOut = async (req, res) => {
                 nama: rfid.siswa.nama,
                 kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}`,
                 tap_out: formatTime(tapOutTime),
-                tanggal: formatDate(today),
+                tanggal: formatDate(new Date()),
             };
 
             sendTapOutNotification(rfid.siswa.kelas.telegram_group_id, notifData)
@@ -327,10 +340,10 @@ const getAllAbsensi = async (req, res) => {
 
         const whereCondition = { deleted_at: null };
 
+        // FIX: filter tanggal pakai range WIB
         if (tanggal) {
-            const date = new Date(tanggal);
-            date.setHours(0, 0, 0, 0);
-            whereCondition.tanggal = date;
+            const { start, end } = getTanggalRangeWIB(tanggal);
+            whereCondition.tanggal = { gte: start, lte: end };
         }
 
         if (siswa_id) whereCondition.siswa_id = siswa_id;
@@ -522,11 +535,11 @@ const getLaporanHarian = async (req, res) => {
             });
         }
 
-        const date = new Date(tanggal);
-        date.setHours(0, 0, 0, 0);
+        // FIX: filter tanggal pakai range WIB
+        const { start, end } = getTanggalRangeWIB(tanggal);
 
         const whereCondition = {
-            tanggal: date,
+            tanggal: { gte: start, lte: end },
             deleted_at: null
         };
 
