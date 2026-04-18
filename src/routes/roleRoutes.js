@@ -6,7 +6,7 @@ const {
   createRole,
   updateRole,
   deleteRole,
-} = require("../controllers/role.controller");
+} = require("../controllers/roleControllers");
 const verifyToken = require("../middleware/verifyToken");
 const checkRole = require("../middleware/checkRoles");
 
