@@ -2,6 +2,7 @@ module.exports = async (prisma) => {
     console.log("🔐 Seeding Role...");
 
     const roleData = [
+        { name: "SUPER ADMIN" },
         { name: "ADMIN" },
         { name: "GURU" },
         { name: "WALAS" },
