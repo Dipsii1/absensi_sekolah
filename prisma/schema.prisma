@@ -44,7 +44,10 @@ model Role {
   id   Int    @id @default(autoincrement())
   name String @unique
 
-  userRole userRole[]
+  userRole   userRole[]
+  created_at DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at DateTime   @updatedAt @db.Timestamptz(6)
+  deleted_at DateTime?  @db.Timestamptz(6)
 
   @@map("roles")
 }
@@ -124,9 +127,9 @@ model OrangTua {
 }
 
 model RFID {
-  id       Int     @id @default(autoincrement())
-  uid_rfid String  @unique @db.VarChar(50)
-  siswa_id String  @db.Uuid
+  id        Int     @id @default(autoincrement())
+  uid_rfid  String  @unique @db.VarChar(50)
+  siswa_id  String  @db.Uuid
   is_active Boolean @default(true)
 
   siswa   Siswa          @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
@@ -143,15 +146,15 @@ model RFID {
 }
 
 model AbsensiSiswa {
-  id              Int               @id @default(autoincrement())
-  siswa_id        String            @db.Uuid
-  tanggal         DateTime          @db.Date
-  tap_in          DateTime?         @db.Timestamptz(6)
-  tap_out         DateTime?         @db.Timestamptz(6)
-  rfid_id         Int?
-  status_tapin    StatusKedatangan?
+  id           Int               @id @default(autoincrement())
+  siswa_id     String            @db.Uuid
+  tanggal      DateTime          @db.Date
+  tap_in       DateTime?         @db.Timestamptz(6)
+  tap_out      DateTime?         @db.Timestamptz(6)
+  rfid_id      Int?
+  status_tapin StatusKedatangan?
 
-  status_harian   StatusHarian?
+  status_harian StatusHarian?
 
   siswa  Siswa                @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
   rfid   RFID?                @relation(fields: [rfid_id], references: [id], onDelete: SetNull)

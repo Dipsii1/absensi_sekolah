@@ -20,8 +20,9 @@ var rfidRoutes = require('./src/routes/rfidRoutes')
 var siswaRoutes = require('./src/routes/siswaRoutes');
 var absensiSiswaRoutes = require('./src/routes/absensiSiswaRoutes');
 var detailAbsensi = require('./src/routes/detailAbsensiRoutes')
-var users = require('./src/routes/usersRoutes');
-var auth = require('./src/routes/authRoutes');
+var usersRoutes = require('./src/routes/usersRoutes');
+var authRoutes = require('./src/routes/authRoutes');
+var roleRoutes = require('./src/routes/roleRoutes')
 
 
 // cron job
@@ -57,8 +58,9 @@ app.use('/api/v1/jadwal', jadwalRoutes)
 app.use('/api/v1/rfid', rfidRoutes);
 app.use('/api/v1/absensi-siswa', absensiSiswaRoutes);
 app.use('/api/v1/detail-absensi', detailAbsensi)
-app.use('/api/v1/users', users);
-app.use('/api/v1/auth', auth);
+app.use('/api/v1/users', usersRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/role', roleRoutes)
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
