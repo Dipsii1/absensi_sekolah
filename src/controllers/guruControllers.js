@@ -3,7 +3,6 @@ const prisma = require("../config/prisma");
 // get all
 const getAllGuru = async (req, res) => {
     try {
-         
         const guru = await prisma.guru.findMany({
             where: {
                 deleted_at: null,
