@@ -85,9 +85,7 @@ const absensiByGuru = async (req, res) => {
 
         const today = getTodayWIB();
         const siswaList = jadwal.kelas.siswa;
-
-        // FIX: filter siswaList berdasarkan absensi_ids jika diberikan
-        // Sebelumnya: filter selalu return true sehingga tidak ada efeknya
+ 
         const targetSiswaList = absensi_ids?.length
             ? siswaList.filter((s) => absensi_ids.includes(s.id))
             : siswaList;
@@ -99,7 +97,7 @@ const absensiByGuru = async (req, res) => {
                 siswa_id: { in: siswaIds },
                 tanggal: today,
                 deleted_at: null,
-                // FIX: filter absensi_ids di level DB juga agar konsisten
+  
                 ...(absensi_ids?.length ? { id: { in: absensi_ids } } : {})
             },
             include: {
@@ -1146,7 +1144,7 @@ const pratinjauWalas = async (req, res) => {
             },
             include: {
                 tahun: true,
-                // FIX: sertakan walas_id dari kelas agar bisa dipakai saat filter detail
+                 
                 siswa: {
                     where: { deleted_at: null },
                     select: {
@@ -1186,9 +1184,7 @@ const pratinjauWalas = async (req, res) => {
                 detail: {
                     where: {
                         deleted_at: null,
-                        // FIX: detail walas ditandai dengan jadwal_id = null
-                        // Tambahkan filter guru_id = walas_id agar tidak bentrok
-                        // dengan detail dari guru lain yang kebetulan jadwal_id-nya null
+                         
                         jadwal_id: null,
                         ...(walasId ? { guru_id: walasId } : {})
                     },
@@ -1210,8 +1206,7 @@ const pratinjauWalas = async (req, res) => {
             const absensi = absensiMap.get(siswa.id);
             const sudah_tap = !!absensi?.tap_in;
 
-            // FIX: detailWalas sekarang sudah terfilter langsung dari query (jadwal_id:null + guru_id:walasId)
-            // sehingga cukup ambil index 0 tanpa perlu .find() lagi
+            
             const detailWalas = absensi?.detail?.[0] ?? null;
 
             let status_rekomendasi = "ALPHA";
@@ -1318,7 +1313,7 @@ const absensiManualWalas = async (req, res) => {
                 detail: {
                     where: {
                         jadwal_id: null,
-                        // FIX: filter berdasarkan walas_id agar tidak bentrok dengan detail guru lain
+                         
                         guru_id: parseInt(walas_id),
                         deleted_at: null
                     }

@@ -3,7 +3,7 @@ const prisma = require("../config/prisma");
 // get all
 const getAllGuru = async (req, res) => {
     try {
-        // FIX: prisma.Guru → prisma.guru (sesuai @@map("guru") di schema)
+         
         const guru = await prisma.guru.findMany({
             where: {
                 deleted_at: null,
@@ -37,7 +37,7 @@ const getGuruById = async (req, res) => {
             });
         }
 
-        // FIX: prisma.Guru → prisma.guru
+         
         const guru = await prisma.guru.findFirst({
             where: {
                 id: parseInt(id),
@@ -48,7 +48,7 @@ const getGuruById = async (req, res) => {
                     where: {
                         deleted_at: null,
                     },
-                    // FIX: tanggal_jadwal tidak ada di model Jadwal, gunakan jam_mulai
+                     
                     orderBy: {
                         jam_mulai: "asc",
                     },
@@ -59,7 +59,7 @@ const getGuruById = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                // FIX: jurusan di model Kelas adalah String, bukan relasi
+                                 
                                 jurusan: true,
                             },
                         },
@@ -117,8 +117,7 @@ const createGuru = async (req, res) => {
             });
         }
 
-        // FIX: prisma.Guru → prisma.guru
-        // Cek apakah NIP sudah ada (termasuk yang soft-deleted)
+       
         const existingGuru = await prisma.guru.findFirst({
             where: { NIP },
         });
@@ -188,7 +187,7 @@ const updateGuru = async (req, res) => {
             });
         }
 
-        // FIX: Konversi tanggal_lahir ke Date (sebelumnya hilang di updateGuru)
+        
         const tanggalLahirDate = new Date(tanggal_lahir.replace(" ", "T"));
 
         if (isNaN(tanggalLahirDate.getTime())) {
@@ -198,7 +197,7 @@ const updateGuru = async (req, res) => {
             });
         }
 
-        // FIX: prisma.Guru → prisma.guru
+         
         const existingGuru = await prisma.guru.findFirst({
             where: {
                 id: parseInt(id),
@@ -235,7 +234,7 @@ const updateGuru = async (req, res) => {
                 nama,
                 nomor_telepon,
                 alamat,
-                // FIX: simpan sebagai Date, bukan string mentah
+                 
                 tanggal_lahir: tanggalLahirDate,
             },
         });
@@ -260,7 +259,7 @@ const deleteGuru = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // FIX: prisma.Guru → prisma.guru
+         
         const existingGuru = await prisma.guru.findFirst({
             where: {
                 id: parseInt(id),
@@ -275,7 +274,7 @@ const deleteGuru = async (req, res) => {
             });
         }
 
-        // FIX: prisma.Jadwal → prisma.jadwal
+         
         const relatedJadwal = await prisma.jadwal.findFirst({
             where: {
                 guru_id: parseInt(id),

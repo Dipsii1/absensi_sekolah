@@ -94,7 +94,7 @@ bot.onText(/\/daftarkan_grup (.+)/, async (msg, match) => {
   }
 
   try {
-    // FIX: jurusan bukan relasi di model Kelas — hapus include jurusan
+     
     const kelas = await prisma.kelas.findFirst({
       where: {
         id: kelasId,
@@ -142,8 +142,7 @@ bot.onText(/\/daftarkan_grup (.+)/, async (msg, match) => {
       data: { telegram_group_id: groupId }
     });
 
-    // FIX: kelas.jurusan adalah string,
-    await bot.sendMessage(
+      await bot.sendMessage(
       msg.chat.id,
       `✅ *Grup berhasil didaftarkan!*\n\n🏫 Kelas: ${kelas.kelas} - ${kelas.jurusan}\n📅 Tahun Ajaran: ${kelas.tahun.tahun_ajaran}\n\nNotifikasi absensi siswa kelas ini akan dikirim ke grup ini.`,
       { parse_mode: 'Markdown' }
@@ -165,8 +164,7 @@ bot.onText(/\/info/, async (msg) => {
   const groupId = String(msg.chat.id);
 
   try {
-    // FIX: jurusan bukan relasi — hapus include jurusan
-    // FIX: gunakan _count untuk hitung siswa, lebih efisien dari include seluruh data siswa
+ 
     const kelas = await prisma.kelas.findFirst({
       where: {
         telegram_group_id: groupId,
@@ -191,7 +189,7 @@ bot.onText(/\/info/, async (msg) => {
       );
     }
 
-    // FIX: kelas.jurusan adalah string, ambil _count dari kelas._count.siswa
+     
     await bot.sendMessage(
       msg.chat.id,
       `ℹ️ *Info Grup*\n\n🏫 Kelas: ${kelas.kelas} - ${kelas.jurusan}\n📅 Tahun Ajaran: ${kelas.tahun.tahun_ajaran}\n👥 Jumlah Siswa: ${kelas._count.siswa} orang\n🆔 Group ID: ${groupId}`,
@@ -291,7 +289,7 @@ const sendTapOutNotification = async (telegramGroupId, data) => {
 // POLLING ERROR HANDLER
 bot.on('polling_error', (error) => {
   if (error.message.includes('409')) {
-    // FIX: pesan lebih netral, tidak hardcoded perintah Windows
+ 
     console.error('⚠️ Conflict 409: Instance bot lain sedang berjalan. Pastikan hanya ada satu proses bot yang aktif.');
   } else {
     console.error('Polling error:', error.message);

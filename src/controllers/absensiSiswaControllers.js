@@ -44,7 +44,6 @@ const tapIn = async (req, res) => {
             });
         }
 
-        // FIX: pakai getTodayWIB() dan getTanggalRangeWIB() agar timezone WIB aman
         const today = getTodayWIB();
         const { start, end } = getTanggalRangeWIB(
             new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
@@ -110,7 +109,7 @@ const tapIn = async (req, res) => {
         const absensi = await prisma.absensiSiswa.create({
             data: {
                 siswa_id: rfid.siswa.id,
-                tanggal: today,           // FIX: midnight WIB
+                tanggal: today,            
                 tap_in: tapInTime,
                 rfid_id: rfid.id,
                 status_tapin: statusTapIn
@@ -218,7 +217,7 @@ const tapOut = async (req, res) => {
             });
         }
 
-        // FIX: pakai range WIB
+         
         const { start, end } = getTanggalRangeWIB(
             new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
         );
@@ -340,7 +339,7 @@ const getAllAbsensi = async (req, res) => {
 
         const whereCondition = { deleted_at: null };
 
-        // FIX: filter tanggal pakai range WIB
+        
         if (tanggal) {
             const { start, end } = getTanggalRangeWIB(tanggal);
             whereCondition.tanggal = { gte: start, lte: end };
@@ -535,7 +534,7 @@ const getLaporanHarian = async (req, res) => {
             });
         }
 
-        // FIX: filter tanggal pakai range WIB
+         
         const { start, end } = getTanggalRangeWIB(tanggal);
 
         const whereCondition = {
