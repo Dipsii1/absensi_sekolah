@@ -7,8 +7,7 @@ const {
   updateRole,
   deleteRole,
 } = require("../controllers/roleControllers");
-const verifyToken = require("../middleware/verifyToken");
-const checkRole = require("../middleware/checkRoles");
+const { verifyToken, checkRole } = require("../middleware/auth");
 
 router.use(verifyToken, checkRole("SUPER_ADMIN"));
 

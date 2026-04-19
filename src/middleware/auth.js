@@ -1,4 +1,31 @@
+const jwt = require("jsonwebtoken");
+
+const verifyToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({
+            success: false,
+            message: "Access token tidak ditemukan"
+        });
+    }
+
+    try {
+        req.user = jwt.verify(token, process.env.JWT_SECRET);
+        next();
+    } catch (err) {
+        const message = err.name === 'TokenExpiredError'
+            ? "Access token sudah expired"
+            : "Access token tidak valid";
+
+        return res.status(403).json({ success: false, message });
+    }
+};
+
 const checkRole = (...allowedRoles) => {
+    const normalizedAllowed = allowedRoles.map(r => r.toUpperCase()); // dihitung sekali
+
     return (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({
@@ -7,7 +34,6 @@ const checkRole = (...allowedRoles) => {
             });
         }
 
-        // Support multi-role (role_names) maupun single-role lama (role_name)
         const userRoles = req.user.role_names
             ?? (req.user.role_name ? [req.user.role_name] : []);
 
@@ -18,9 +44,6 @@ const checkRole = (...allowedRoles) => {
             });
         }
 
-        const normalizedAllowed = allowedRoles.map(r => r.toUpperCase());
-
-        // Lolos jika minimal satu role user ada di allowedRoles
         const hasRole = userRoles.some(r => normalizedAllowed.includes(r.toUpperCase()));
 
         if (!hasRole) {
@@ -34,4 +57,5 @@ const checkRole = (...allowedRoles) => {
     };
 };
 
-module.exports = checkRole;
+ 
+module.exports = { verifyToken, checkRole };

@@ -1,17 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const usersControllers = require("../controllers/usersControllers");
-const checkRole = require('../middleware/checkRoles')
+const {verifyToken, checkRole} = require ("../middleware/auth")
 
+router.get("/", verifyToken, usersControllers.getAllUsers);
+router.get("/:id", verifyToken, usersControllers.getUserById);
 
-router.get("/", usersControllers.getAllUsers);
-router.get("/:id", usersControllers.getUserById);
+router.put("/:id", verifyToken, checkRole("SUPER_ADMIN"), usersControllers.updateUser);
+router.delete("/:id", verifyToken, checkRole("SUPER_ADMIN"), usersControllers.deleteUser);
 
-
-// hanya super admin
-router.put("/:id",checkRole("SUPER_ADMIN"), usersControllers.updateUser);
-
-// delete hanya super admin
-router.delete("/:id",checkRole("SUPER_ADMIN"), usersControllers.deleteUser);
-
-module.exports = router;    
+module.exports = router;
