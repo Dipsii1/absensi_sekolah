@@ -387,7 +387,7 @@ const updateUser = async (req, res) => {
     }
 };
 
-// delete user (soft delete)
+// delete user — soft delete + hapus userRole agar tidak ada orphan
 const deleteUser = async (req, res) => {
     try {
         const { id } = req.params;
@@ -405,13 +405,17 @@ const deleteUser = async (req, res) => {
                 message: "User tidak ditemukan"
             });
         }
-
-        await prisma.user.update({
-            where: { id },
-            data: {
-                deleted_at: new Date()
-            }
-        });
+        
+        // untuk role yang dipakai user ini setelah penghapusan.
+        await prisma.$transaction([
+            prisma.userRole.deleteMany({
+                where: { user_id: id }
+            }),
+            prisma.user.update({
+                where: { id },
+                data: { deleted_at: new Date() }
+            })
+        ]);
 
         return res.status(200).json({
             success: true,
