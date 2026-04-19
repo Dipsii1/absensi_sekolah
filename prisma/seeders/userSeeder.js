@@ -8,7 +8,7 @@ module.exports = async (prisma, roleMap, guruList) => {
   const userData = [
     {
       email: "superAdmin@sekolah.sch.id",
-      roles: ["SUPER ADMIN"],
+      roles: ["SUPER_ADMIN"],
       guru_id: null,
     },
     {

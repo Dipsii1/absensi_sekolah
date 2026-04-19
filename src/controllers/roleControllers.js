@@ -4,21 +4,32 @@ const prisma = require("../config/prisma");
 const getAllRole = async (req, res) => {
   try {
     const roles = await prisma.role.findMany({
-      where: {
-        deleted_at: null,
-      },
-      orderBy: {
-        created_at: "desc",
+      where:   { deleted_at: null },
+      orderBy: { created_at: "desc" },
+      include: {
+        _count: {
+          select: {
+            // hitung hanya userRole yang user-nya masih aktif
+            userRole: true,
+          },
+        },
       },
     });
-
+ 
+    // Bentuk ulang response agar frontend bisa baca `user_count` langsung
+    const data = roles.map((role) => ({
+      ...role,
+      user_count: role._count?.userRole ?? 0,
+      _count: undefined,
+    }));
+ 
     return res.status(200).json({
       success: true,
       message: "Berhasil mendapatkan data role",
-      data: roles,
+      data,
     });
   } catch (error) {
-    console.log("Error getting roles:", error);
+    console.error("Error getting roles:", error);
     return res.status(500).json({
       success: false,
       message: "Terjadi kesalahan pada server",
