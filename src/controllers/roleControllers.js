@@ -64,9 +64,8 @@ const getRoleById = async (req, res) => {
 // CREATE Role
 const createRole = async (req, res) => {
   try {
-    const { name } = req.body;
+    const name = req.body.name?.trim();
 
-    // Validasi input
     if (!name) {
       return res.status(400).json({
         success: false,
@@ -74,37 +73,24 @@ const createRole = async (req, res) => {
       });
     }
 
-    // Cek duplikasi nama role yang aktif
+    // cek apakah role sudah pernah di dibuat
     const existingRole = await prisma.role.findFirst({
-      where: {
-        name: name,
-        deleted_at: null,
-      },
+      where: { name },
     });
 
+    // jika role masih aktif tidak akan bisa membuatnya
     if (existingRole) {
-      return res.status(409).json({
-        success: false,
-        message: "Nama role sudah ada",
-      });
-    }
+      if (!existingRole.deleted_at) {
+        return res.status(409).json({
+          success: false,
+          message: "Nama role sudah ada",
+        });
+      }
 
-    // Cek apakah ada nama role yang sudah di soft delete
-    const checkDeletedRole = await prisma.role.findFirst({
-      where: {
-        name: name,
-      },
-    });
-
-    if (checkDeletedRole && checkDeletedRole.deleted_at) {
-      // Restore role yang di soft delete
+      // jika role sudah pernah di dibuat lalu di hapus (soft delete) akan di restore
       const restoredRole = await prisma.role.update({
-        where: {
-          id: checkDeletedRole.id,
-        },
-        data: {
-          deleted_at: null,
-        },
+        where: { id: existingRole.id },
+        data: { deleted_at: null },
       });
 
       return res.status(200).json({
@@ -116,9 +102,7 @@ const createRole = async (req, res) => {
 
     // Buat data baru
     const newRole = await prisma.role.create({
-      data: {
-        name: name,
-      },
+      data: { name },
     });
 
     return res.status(201).json({
@@ -127,7 +111,7 @@ const createRole = async (req, res) => {
       data: newRole,
     });
   } catch (error) {
-    console.log("Error creating role:", error);
+    console.error("Error creating role:", error);
     return res.status(500).json({
       success: false,
       message: "Terjadi kesalahan pada server",
@@ -135,7 +119,6 @@ const createRole = async (req, res) => {
     });
   }
 };
-
 // UPDATE Role
 const updateRole = async (req, res) => {
   try {
@@ -212,11 +195,12 @@ const updateRole = async (req, res) => {
 const deleteRole = async (req, res) => {
   try {
     const { id } = req.params;
+    const roleId = parseInt(id);
 
-    // Cek apakah role ada
+    // Cek apakah role ada dan aktif
     const existingRole = await prisma.role.findFirst({
       where: {
-        id: parseInt(id),
+        id: roleId,
         deleted_at: null,
       },
     });
@@ -228,36 +212,42 @@ const deleteRole = async (req, res) => {
       });
     }
 
-    // Cek apakah role masih digunakan oleh user
-    const usedInUserRole = await prisma.userRole.count({
+    // mencari user aktif
+    const usedByActiveUser = await prisma.userRole.count({
       where: {
-        role_id: parseInt(id),
+        role_id: roleId,
+        user: {
+          deleted_at: null,
+        },
       },
     });
 
-    if (usedInUserRole > 0) {
+    if (usedByActiveUser > 0) {
       return res.status(400).json({
         success: false,
-        message: "Role masih digunakan oleh user",
+        message: "Role masih digunakan oleh user aktif",
       });
     }
 
-    // Soft delete role
-    await prisma.role.update({
-      where: {
-        id: parseInt(id),
-      },
-      data: {
-        deleted_at: new Date(),
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.userRole.deleteMany({
+        where: { role_id: roleId },
+      });
+
+      // Soft-delete role
+      await tx.role.update({
+        where: { id: roleId },
+        data: { deleted_at: new Date() },
+      });
     });
 
     return res.status(200).json({
       success: true,
       message: "Berhasil menghapus role",
     });
+
   } catch (error) {
-    console.log("Error deleting role:", error);
+    console.error("Error deleting role:", error);
     return res.status(500).json({
       success: false,
       message: "Terjadi kesalahan pada server",

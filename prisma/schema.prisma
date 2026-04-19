@@ -42,13 +42,15 @@ enum Hari {
 
 model Role {
   id   Int    @id @default(autoincrement())
-  name String @unique
+  name String
 
   userRole   userRole[]
   created_at DateTime   @default(now()) @db.Timestamptz(6)
   updated_at DateTime   @updatedAt @db.Timestamptz(6)
   deleted_at DateTime?  @db.Timestamptz(6)
 
+
+  @@index([name, deleted_at])
   @@map("roles")
 }
 
