@@ -1,6 +1,8 @@
+// absensi
+
 const prisma = require("../config/prisma");
 const { sendTapInNotification, sendTapOutNotification } = require("../services/telegramServices");
-const { formatDate, formatTime, formatDateTime, getHariFromDate, getTodayWIB, getTanggalRangeWIB } = require("../helper/date");
+const { formatDate, formatTime, formatDateTime, getHariFromDate, getTodayStrWIB, toDateOnly, getTanggalRangeWIB } = require("../helper/date");
 
 // Tap In 
 const tapIn = async (req, res) => {
@@ -44,18 +46,13 @@ const tapIn = async (req, res) => {
             });
         }
 
-        const today = getTodayWIB();
-        const { start, end } = getTanggalRangeWIB(
-            new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
-        );
+        const todayStr = getTodayStrWIB();
+        const todayDate = toDateOnly(todayStr);
 
         const existingAbsensi = await prisma.absensiSiswa.findFirst({
             where: {
                 siswa_id: rfid.siswa.id,
-                tanggal: {
-                    gte: start,
-                    lte: end
-                },
+                tanggal: todayDate,
                 tap_in: { not: null },
                 deleted_at: null
             }
@@ -109,7 +106,7 @@ const tapIn = async (req, res) => {
         const absensi = await prisma.absensiSiswa.create({
             data: {
                 siswa_id: rfid.siswa.id,
-                tanggal: today,            
+                tanggal: todayDate,
                 tap_in: tapInTime,
                 rfid_id: rfid.id,
                 status_tapin: statusTapIn
@@ -140,7 +137,7 @@ const tapIn = async (req, res) => {
                 kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}`,
                 status_tapin: statusTapIn,
                 tap_in: formatTime(tapInTime),
-                tanggal: formatDate(today),
+                tanggal: formatDate(todayDate),
             };
 
             sendTapInNotification(rfid.siswa.kelas.telegram_group_id, notifData)
@@ -217,18 +214,13 @@ const tapOut = async (req, res) => {
             });
         }
 
-         
-        const { start, end } = getTanggalRangeWIB(
-            new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
-        );
+        const todayStr = getTodayStrWIB();
+        const todayDate = toDateOnly(todayStr);
 
         const absensiTapIn = await prisma.absensiSiswa.findFirst({
             where: {
                 siswa_id: rfid.siswa_id,
-                tanggal: {
-                    gte: start,
-                    lte: end
-                },
+                tanggal: todayDate,
                 tap_in: { not: null },
                 deleted_at: null
             }
@@ -244,10 +236,7 @@ const tapOut = async (req, res) => {
         const existingTapOut = await prisma.absensiSiswa.findFirst({
             where: {
                 siswa_id: rfid.siswa_id,
-                tanggal: {
-                    gte: start,
-                    lte: end
-                },
+                tanggal: todayDate,
                 tap_out: { not: null },
                 deleted_at: null
             }
@@ -292,7 +281,7 @@ const tapOut = async (req, res) => {
                 nama: rfid.siswa.nama,
                 kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}`,
                 tap_out: formatTime(tapOutTime),
-                tanggal: formatDate(new Date()),
+                tanggal: formatDate(todayDate),
             };
 
             sendTapOutNotification(rfid.siswa.kelas.telegram_group_id, notifData)
@@ -339,10 +328,8 @@ const getAllAbsensi = async (req, res) => {
 
         const whereCondition = { deleted_at: null };
 
-        
         if (tanggal) {
-            const { start, end } = getTanggalRangeWIB(tanggal);
-            whereCondition.tanggal = { gte: start, lte: end };
+            whereCondition.tanggal = toDateOnly(tanggal);
         }
 
         if (siswa_id) whereCondition.siswa_id = siswa_id;
@@ -522,6 +509,58 @@ const getAbsensiById = async (req, res) => {
     }
 };
 
+// Get laporan range
+const getLaporanRange = async (req, res) => {
+    try {
+        const { tanggal_mulai, tanggal_akhir, kelas_id } = req.query;
+
+        if (!tanggal_mulai || !tanggal_akhir) {
+            return res.status(400).json({
+                success: false,
+                message: "tanggal_mulai dan tanggal_akhir harus diisi"
+            });
+        }
+
+        const whereCondition = {
+            deleted_at: null,
+            tanggal: {
+                gte: toDateOnly(tanggal_mulai),
+                lte: toDateOnly(tanggal_akhir)
+            }
+        };
+
+        if (kelas_id) {
+            whereCondition.siswa = { kelas_id: parseInt(kelas_id) };
+        }
+
+        const absensiList = await prisma.absensiSiswa.findMany({
+            where: whereCondition,
+            select: { tanggal: true }
+        });
+
+        // Group by tanggal dalam WIB
+        const grouped = {};
+        absensiList.forEach(a => {
+            const key = a.tanggal.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+            grouped[key] = (grouped[key] || 0) + 1;
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Berhasil mengambil laporan absensi range",
+            data: grouped
+        });
+
+    } catch (error) {
+        console.error("Error getLaporanRange:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
+
 // Get laporan absensi harian
 const getLaporanHarian = async (req, res) => {
     try {
@@ -534,11 +573,8 @@ const getLaporanHarian = async (req, res) => {
             });
         }
 
-         
-        const { start, end } = getTanggalRangeWIB(tanggal);
-
         const whereCondition = {
-            tanggal: { gte: start, lte: end },
+            tanggal: toDateOnly(tanggal),
             deleted_at: null
         };
 
@@ -750,6 +786,7 @@ module.exports = {
     getAllAbsensi,
     getAbsensiById,
     getLaporanHarian,
+    getLaporanRange,
     updateAbsensi,
     deleteAbsensi
 };

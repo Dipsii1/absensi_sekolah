@@ -8,6 +8,7 @@ router.post('/tap-out', absensi.tapOut);
 
 router.get('/', absensi.getAllAbsensi);
 router.get('/laporan/harian', absensi.getLaporanHarian);
+router.get('/laporan/range', absensi.getLaporanRange)
 router.get('/:id', absensi.getAbsensiById);
 router.put('/:id', absensi.updateAbsensi);
 router.delete('/:id', absensi.deleteAbsensi);

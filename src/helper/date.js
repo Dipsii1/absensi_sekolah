@@ -52,23 +52,40 @@ const validateTimeFormat = (time) => {
     return timeRegex.test(time);
 };
 
-// Ambil tanggal hari ini sebagai midnight WIB (bukan UTC)
+// Ambil string tanggal hari ini dalam WIB "YYYY-MM-DD"
+const getTodayStrWIB = () => {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+};
+
+// Harus pakai UTC midnight agar PostgreSQL simpan tanggal yang benar
+const toDateOnly = (dateStr) => {
+    return new Date(`${dateStr}T00:00:00.000Z`);
+};
+
+// Legacy - tetap dipertahankan agar tidak breaking perubahan di file lain
 const getTodayWIB = () => {
-    const wibStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-    return new Date(`${wibStr}T00:00:00.000+07:00`);
+    return toDateOnly(getTodayStrWIB());
 };
 
-// Parse string tanggal "YYYY-MM-DD" ke Date midnight WIB (bukan UTC)
+// Legacy - tetap dipertahankan
 const parseTanggal = (tanggalStr) => {
-    return new Date(`${tanggalStr}T00:00:00.000+07:00`);
+    return toDateOnly(tanggalStr);
 };
 
-// Ambil range start–end untuk satu hari penuh dalam WIB
-// Gunakan ini saat filter tap_in di database
+// Untuk filter field @db.Timestamptz (tap_in, tap_out)
 const getTanggalRangeWIB = (tanggalStr) => {
     const start = new Date(`${tanggalStr}T00:00:00.000+07:00`);
     const end   = new Date(`${tanggalStr}T23:59:59.999+07:00`);
     return { start, end };
+};
+
+// Nomor minggu ISO dalam tahun
+const getWeekNumber = (date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 };
 
 module.exports = {
@@ -79,6 +96,9 @@ module.exports = {
     validateHari,
     getHariFromDate,
     getTodayWIB,
+    getTodayStrWIB,
+    toDateOnly,
     parseTanggal,
     getTanggalRangeWIB,
+    getWeekNumber
 };

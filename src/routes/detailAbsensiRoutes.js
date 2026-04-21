@@ -14,6 +14,7 @@ router.post('/absensi-walas', detailAbsensi.absensiManualWalas)
 // Rekap Siswa
 router.get('/rekap-siswa', detailAbsensi.getRekapAbsensiSiswa);
 router.get('/rekap-siswa/tahunan', detailAbsensi.getRekapAbsensiSiswaYearly);
+router.get('/rekap-siswa/weakly',detailAbsensi.getRekapAbsensiSiswaWeakly)
 
 // Rekap Kelas
 router.get('/rekap-kelas', detailAbsensi.getRekapAbsensiKelas);

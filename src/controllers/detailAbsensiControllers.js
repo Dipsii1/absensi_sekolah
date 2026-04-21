@@ -1,7 +1,8 @@
+//detail absensi
 
 const prisma = require("../config/prisma");
 const { StatusAbsensi } = require("@prisma/client");
-const { formatDate, formatTime, formatDateTime, validateHari, getHariFromDate, parseTanggal, getTodayWIB } = require("../helper/date");
+const { formatDate, formatTime, formatDateTime, validateHari, getHariFromDate, parseTanggal, getTodayWIB, getWeekNumber } = require("../helper/date");
 
 const NAMA_BULAN = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -85,7 +86,7 @@ const absensiByGuru = async (req, res) => {
 
         const today = getTodayWIB();
         const siswaList = jadwal.kelas.siswa;
- 
+
         const targetSiswaList = absensi_ids?.length
             ? siswaList.filter((s) => absensi_ids.includes(s.id))
             : siswaList;
@@ -97,7 +98,7 @@ const absensiByGuru = async (req, res) => {
                 siswa_id: { in: siswaIds },
                 tanggal: today,
                 deleted_at: null,
-  
+
                 ...(absensi_ids?.length ? { id: { in: absensi_ids } } : {})
             },
             include: {
@@ -514,6 +515,159 @@ const getRekapAbsensiKelas = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server"
+        });
+    }
+};
+
+// Get rekap absensi siswa mingguan
+const getRekapAbsensiSiswaWeakly = async (req, res) => {
+    try {
+        const { siswa_id, tanggal_mulai, mapel_id } = req.query;
+
+        if (!siswa_id || !tanggal_mulai) {
+            return res.status(400).json({
+                success: false,
+                message: "siswa_id dan tanggal_mulai diperlukan"
+            });
+        }
+
+        // Hitung range Senin–Minggu dari tanggal_mulai
+        const startDate = parseTanggal(tanggal_mulai);
+        const dayOfWeek = startDate.getDay();
+
+        // Normalisasi ke Senin minggu tersebut
+        const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const monday = new Date(startDate);
+        monday.setDate(monday.getDate() + diffToMonday);
+
+        const sunday = new Date(monday);
+        sunday.setDate(sunday.getDate() + 6);
+
+        // Buat range WIB yang benar menggunakan parseTanggal
+        const mondayStr = monday.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+        const sundayStr = sunday.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+
+        const tanggalMulaiWIB = parseTanggal(mondayStr);                          // 00:00 WIB Senin
+        const tanggalAkhirWIB = new Date(`${sundayStr}T23:59:59.999+07:00`);      // 23:59 WIB Minggu
+
+        const whereClause = {
+            deleted_at: null,
+            absensi: {
+                siswa_id, 
+                deleted_at: null,
+                tanggal: {
+                    gte: tanggalMulaiWIB,
+                    lte: tanggalAkhirWIB
+                }
+            },
+            ...(mapel_id
+                ? { jadwal: { mapel_id: parseInt(mapel_id), deleted_at: null } }
+                : { jadwal: { deleted_at: null } })
+        };
+
+        const detailAbsensi = await prisma.detailAbsensiSiswa.findMany({
+            where: whereClause,
+            include: {
+                absensi: {
+                    include: {
+                        siswa: {
+                            select: {
+                                id: true,
+                                nama: true,
+                                kelas: {
+                                    include: { tahun: true }
+                                }
+                            }
+                        }
+                    }
+                },
+                jadwal: {
+                    include: { mata_pelajaran: true }
+                },
+                guru: {
+                    select: { nama: true }
+                }
+            },
+            orderBy: {
+                absensi: { tanggal: "asc" }
+            }
+        });
+
+        if (detailAbsensi.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Data absensi tidak ditemukan untuk minggu tersebut"
+            });
+        }
+
+        const stats = hitungStatistik(detailAbsensi);
+
+        // Statistik per hari (Senin–Minggu)
+        const HARI_URUTAN = ["SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU", "MINGGU"];
+
+        const statistikPerHari = HARI_URUTAN.map((hari) => {
+            const detailHari = detailAbsensi.filter((d) => {
+                const tgl = d.absensi?.tanggal;
+                return tgl && getHariFromDate(new Date(tgl)) === hari;
+            });
+
+            return {
+                hari,
+                ...hitungStatistik(detailHari),
+                absensi: detailHari.map((d) => ({
+                    id: d.id,
+                    mata_pelajaran: d.jadwal?.mata_pelajaran?.nama_mapel ?? "-",
+                    status: d.status,
+                    jam_absen: formatDateTime(d.jam_absen),
+                    keterangan: d.keterangan,
+                    guru: d.guru?.nama ?? "-",
+                    tap_in: formatTime(d.absensi.tap_in),
+                    status_tapin: d.absensi.status_tapin
+                }))
+            };
+        });
+
+        // Statistik per mapel
+        const groupByMapel = detailAbsensi.reduce((acc, detail) => {
+            const mapelName = detail.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
+            if (!acc[mapelName]) {
+                acc[mapelName] = { total: 0, hadir: 0, izin: 0, sakit: 0, alpha: 0 };
+            }
+            acc[mapelName].total++;
+            acc[mapelName][detail.status.toLowerCase()]++;
+            return acc;
+        }, {});
+
+        const statistikPerMapel = Object.entries(groupByMapel).map(([nama_mapel, stat]) => ({
+            nama_mapel,
+            ...stat,
+            persentase_kehadiran: stat.total > 0
+                ? ((stat.hadir / stat.total) * 100).toFixed(2)
+                : "0.00"
+        }));
+
+        return res.status(200).json({
+            success: true,
+            message: "Berhasil mendapatkan rekap absensi mingguan",
+            data: {
+                siswa: detailAbsensi[0].absensi.siswa,
+                periode: {
+                    tanggal_mulai: formatDate(tanggalMulaiWIB),
+                    tanggal_akhir: formatDate(tanggalAkhirWIB),
+                    minggu_ke: getWeekNumber(tanggalMulaiWIB)
+                },
+                statistik_keseluruhan: stats,
+                statistik_per_hari: statistikPerHari,
+                statistik_per_mapel: statistikPerMapel
+            }
+        });
+
+    } catch (error) {
+        console.error("Error in getRekapAbsensiSiswaWeakly:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
         });
     }
 };
@@ -1144,7 +1298,7 @@ const pratinjauWalas = async (req, res) => {
             },
             include: {
                 tahun: true,
-                 
+
                 siswa: {
                     where: { deleted_at: null },
                     select: {
@@ -1184,7 +1338,7 @@ const pratinjauWalas = async (req, res) => {
                 detail: {
                     where: {
                         deleted_at: null,
-                         
+
                         jadwal_id: null,
                         ...(walasId ? { guru_id: walasId } : {})
                     },
@@ -1206,7 +1360,7 @@ const pratinjauWalas = async (req, res) => {
             const absensi = absensiMap.get(siswa.id);
             const sudah_tap = !!absensi?.tap_in;
 
-            
+
             const detailWalas = absensi?.detail?.[0] ?? null;
 
             let status_rekomendasi = "ALPHA";
@@ -1313,7 +1467,7 @@ const absensiManualWalas = async (req, res) => {
                 detail: {
                     where: {
                         jadwal_id: null,
-                         
+
                         guru_id: parseInt(walas_id),
                         deleted_at: null
                     }
@@ -1435,6 +1589,7 @@ module.exports = {
     getRekapAbsensiSiswa,
     getRekapAbsensiKelas,
     getRekapAbsensiSiswaYearly,
+    getRekapAbsensiSiswaWeakly,
     getRekapAbsensiByJadwal,
     GetRekapAbsensiKelasTahunan,
     GetRekapAbsensiKelasSemester,
