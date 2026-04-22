@@ -94,6 +94,48 @@ const getGuruById = async (req, res) => {
     }
 };
 
+
+const getGuruWalas = async (req, res) => {
+    try {
+        const guru = await prisma.guru.findMany({
+            where: {
+                deleted_at: null,
+                user: {
+                    userRole: {
+                        some: {
+                            role: {
+                                name: "WALAS",
+                                deleted_at: null
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy:{
+                nama: "asc"
+            },
+            select: {
+                id: true,
+                NIP: true,
+                nama: true,
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Berhasil mendapatkan data guru dengan role walas",
+            data: guru,
+        });
+    } catch (error) {
+        console.error("Error getting guru walas:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message,
+        });
+    }
+};
+
 // Create guru
 const createGuru = async (req, res) => {
     try {
@@ -314,4 +356,5 @@ module.exports = {
     createGuru,
     updateGuru,
     deleteGuru,
+    getGuruWalas
 };
