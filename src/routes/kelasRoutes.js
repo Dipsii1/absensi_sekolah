@@ -3,7 +3,7 @@ const router = express.Router();
 const kelasControllers = require("../controllers/kelasControllers");
 
 router.get("/", kelasControllers.getAllKelas);
-router.post("/assign/walas", kelasControllers.assignWalas);
+router.patch("/assign/walas", kelasControllers.assignWalas);
 router.post("/", kelasControllers.createKelas);
 router.get("/:id", kelasControllers.getKelasById);
 router.put("/:id", kelasControllers.updateKelas);
