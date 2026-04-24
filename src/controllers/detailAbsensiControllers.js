@@ -1530,7 +1530,6 @@ const getRekapAbsensiSemuaKelas = async (req, res) => {
   try {
     const { tanggal_mulai, tanggal_akhir, tahun_ajaran_id } = req.query;
 
-    // validasi input tanggal
     if (!tanggal_mulai || !tanggal_akhir) {
       return res.status(400).json({
         success: false,
@@ -1541,7 +1540,6 @@ const getRekapAbsensiSemuaKelas = async (req, res) => {
     const tglMulai = parseTanggal(tanggal_mulai);
     const tglAkhir = parseTanggal(tanggal_akhir);
 
-    // Validasi max range 1 tahun 
     const diffDays = (tglAkhir - tglMulai) / (1000 * 60 * 60 * 24);
     if (diffDays > 366) {
       return res.status(400).json({
@@ -1550,20 +1548,15 @@ const getRekapAbsensiSemuaKelas = async (req, res) => {
       });
     }
 
-    // Ambil semua kelas
     const semuaKelas = await prisma.kelas.findMany({
       where: {
         deleted_at: null,
-        ...(tahun_ajaran_id ? { tahun_id: parseInt(tahun_ajaran_id) } : {})
+        ...(tahun_ajaran_id ? { tahun_ajaran_id: parseInt(tahun_ajaran_id) } : {})
       },
       select: {
         id: true,
-        kelas: true,
-        jurusan: true,
-        tahun: { select: { tahun_ajaran: true } },
         _count: { select: { siswa: { where: { deleted_at: null } } } }
-      },
-      orderBy: { kelas: "asc" }
+      }
     });
 
     if (semuaKelas.length === 0) {
@@ -1572,7 +1565,7 @@ const getRekapAbsensiSemuaKelas = async (req, res) => {
 
     const kelasIds = semuaKelas.map((k) => k.id);
 
-    // groupBy global per status
+    // GroupBy untuk menghitung statistik global per status
     const grouped = await prisma.detailAbsensiSiswa.groupBy({
       by: ["status"],
       where: {
@@ -1586,75 +1579,12 @@ const getRekapAbsensiSemuaKelas = async (req, res) => {
       _count: { status: true }
     });
 
-    // Bangun map status 
-    const groupedPerKelas = await prisma.detailAbsensiSiswa.groupBy({
-      by: ["status"],
-      where: {
-        deleted_at: null,
-        absensi: {
-          deleted_at: null,
-          tanggal: { gte: tglMulai, lte: tglAkhir },
-          siswa: { kelas_id: { in: kelasIds } }
-        }
-      },
-      _count: { status: true },
-    });
-
-    // Bangun map status global
-    const rekapPerKelasRaw = await prisma.$queryRaw`
-      SELECT
-        s.kelas_id,
-        das.status,
-        COUNT(*)::int AS jumlah
-      FROM "DetailAbsensiSiswa" das
-      JOIN "AbsensiSiswa" ab ON ab.id = das.absensi_id
-      JOIN "Siswa" s ON s.id = ab.siswa_id
-      WHERE
-        das.deleted_at IS NULL
-        AND ab.deleted_at IS NULL
-        AND ab.tanggal BETWEEN ${tglMulai} AND ${tglAkhir}
-        AND s.kelas_id = ANY(${kelasIds})
-      GROUP BY s.kelas_id, das.status
-    `;
-
-    // Bangun map kelas_id 
-    const rekapMap = {};
-    rekapPerKelasRaw.forEach(({ kelas_id, status, jumlah }) => {
-      if (!rekapMap[kelas_id]) {
-        rekapMap[kelas_id] = { hadir: 0, izin: 0, sakit: 0, alpha: 0, total: 0 };
-      }
-      rekapMap[kelas_id][status.toLowerCase()] = jumlah;
-      rekapMap[kelas_id].total += jumlah;
-    });
-
-    // Hitung global dari rekapMap 
-    const global = Object.values(rekapMap).reduce(
-      (acc, s) => ({
-        hadir: acc.hadir + s.hadir,
-        izin: acc.izin + s.izin,
-        sakit: acc.sakit + s.sakit,
-        alpha: acc.alpha + s.alpha,
-        total: acc.total + s.total
-      }),
-      { hadir: 0, izin: 0, sakit: 0, alpha: 0, total: 0 }
-    );
-
-    const statistikPerKelas = semuaKelas.map((kelas) => {
-      const s = rekapMap[kelas.id] ?? { hadir: 0, izin: 0, sakit: 0, alpha: 0, total: 0 };
-      return {
-        kelas: {
-          id: kelas.id,
-          nama: `${kelas.kelas} ${kelas.jurusan}`,
-          tahun_ajaran: kelas.tahun.tahun_ajaran,
-          total_siswa: kelas._count.siswa
-        },
-        statistik: {
-          ...s,
-          persentase_kehadiran: s.total > 0
-            ? ((s.hadir / s.total) * 100).toFixed(2)
-            : "0.00"
-        }
-      };
+    // Bangun statistik global dari groupBy
+    const global = { hadir: 0, izin: 0, sakit: 0, alpha: 0, total: 0 };
+    grouped.forEach(({ status, _count }) => {
+      const key = status.toLowerCase();
+      global[key] = _count.status;
+      global.total += _count.status;
     });
 
     return res.status(200).json({
@@ -1672,8 +1602,7 @@ const getRekapAbsensiSemuaKelas = async (req, res) => {
           persentase_kehadiran: global.total > 0
             ? ((global.hadir / global.total) * 100).toFixed(2)
             : "0.00"
-        },
-        statistik_per_kelas: statistikPerKelas
+        }
       }
     });
 
