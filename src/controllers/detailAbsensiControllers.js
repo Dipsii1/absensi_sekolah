@@ -1,5 +1,3 @@
-//detail absensi
-
 const prisma = require("../config/prisma");
 const { StatusAbsensi } = require("@prisma/client");
 const { formatDate, formatTime, formatDateTime, validateHari, getHariFromDate, parseTanggal, getTodayWIB, getWeekNumber } = require("../helper/date");

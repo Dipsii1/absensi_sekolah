@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const detailAbsensi = require("../controllers/detailAbsensiControllers.js");
 
+
+// absensi guru
 router.post('/absensi-guru', detailAbsensi.absensiByGuru);
 router.put('/update-status', detailAbsensi.updateStatusAbsensiManual);
 router.delete('/:id', detailAbsensi.deleteDetailAbsensi);
