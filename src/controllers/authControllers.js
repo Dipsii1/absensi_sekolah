@@ -56,8 +56,9 @@ const extractRoles = (userRole) => userRole?.map(ur => ur.role) ?? [];
 // Register
 const register = async (req, res) => {
     try {
-        const { email, password, role, guru_id } = req.body;
+        const { email, password, role, guru_id, role_names } = req.body; 
 
+        // Validasi input 
         if (!email || !password || !role) {
             return res.status(400).json({
                 success: false,
@@ -80,33 +81,45 @@ const register = async (req, res) => {
             });
         }
 
+        
         const roleCache = await getRoleCache();
-        const roleKey = role.toUpperCase();
 
-        if (!roleCache[roleKey]) {
+        const normalizeRoleName = (r) => {
+            if (!r) return null;
+            const upper = String(r).trim().toUpperCase();
+            return upper === "WALI KELAS" ? "WALAS" : upper;
+        };
+
+        const requestedRaw = Array.isArray(role_names) && role_names.length
+            ? role_names
+            : [role];
+
+        const finalRoleNames = requestedRaw
+            .map(normalizeRoleName)
+            .filter(Boolean);
+
+        // Jika ada ADMIN, hanya ADMIN yang boleh
+        const resolvedRoles = finalRoleNames.includes("ADMIN")
+            ? ["ADMIN"]
+            : Array.from(new Set(finalRoleNames));
+
+        // Validasi semua role ada di cache
+        const invalidRoles = resolvedRoles.filter((r) => !roleCache[r]);
+        if (invalidRoles.length) {
             return res.status(400).json({
                 success: false,
-                message: `Role tidak valid. Pilihan yang tersedia: ${Object.keys(roleCache).join(", ")}`,
+                message: `Role tidak valid: ${invalidRoles.join(", ")}. Pilihan: ${Object.keys(roleCache).join(", ")}`,
             });
         }
 
-        const roleData = roleCache[roleKey];
+        // ── Validasi guru (GURU atau WALAS keduanya butuh guru_id) ─────────
+        const needsGuru = resolvedRoles.includes("GURU") || resolvedRoles.includes("WALAS");
 
-        const existingEmail = await prisma.user.findFirst({
-            where: { email, deleted_at: null },
-        });
-        if (existingEmail) {
-            return res.status(409).json({
-                success: false,
-                message: "Email sudah terdaftar",
-            });
-        }
-
-        if (roleKey === "GURU") {
+        if (needsGuru) {
             if (!guru_id) {
                 return res.status(400).json({
                     success: false,
-                    message: "Guru ID wajib diisi untuk role GURU",
+                    message: "Guru ID wajib diisi untuk role GURU/WALAS",
                 });
             }
             if (isNaN(parseInt(guru_id))) {
@@ -137,10 +150,24 @@ const register = async (req, res) => {
             }
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const guruIdValue = roleKey === "GURU" && guru_id ? parseInt(guru_id, 10) : null;
+        // cek email sipembuat akun sudah terdaftar (non-deleted)
+        const existingEmail = await prisma.user.findFirst({
+            where: { email, deleted_at: null },
+        });
+        if (existingEmail) {
+            return res.status(409).json({
+                success: false,
+                message: "Email sudah terdaftar",
+            });
+        }
 
-        // Cek soft-deleted user → restore
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const guruIdValue = needsGuru && guru_id ? parseInt(guru_id, 10) : null;
+
+        // siapkan data userRole untuk create/update
+        const userRoleData = resolvedRoles.map((r) => ({ role_id: roleCache[r].id }));
+
+        // cek apakah ada user dengan email yang sama tapi sudah dihapus 
         const deletedUser = await prisma.user.findFirst({
             where: { email, deleted_at: { not: null } },
         });
@@ -153,9 +180,9 @@ const register = async (req, res) => {
                     guru_id: guruIdValue,
                     deleted_at: null,
                     userRole: {
-                        deleteMany: {},
-                        create: { role_id: roleData.id }
-                    }
+                        deleteMany: {},          
+                        create: userRoleData,     
+                    },
                 },
                 select: userSelect,
             });
@@ -169,15 +196,15 @@ const register = async (req, res) => {
             });
         }
 
-        // Buat user baru
+        // buat user baru
         const newUser = await prisma.user.create({
             data: {
                 email,
                 password: hashedPassword,
                 guru_id: guruIdValue,
                 userRole: {
-                    create: { role_id: roleData.id }
-                }
+                    create: userRoleData,
+                },
             },
             select: userSelect,
         });
