@@ -166,77 +166,44 @@ const createSiswa = async (req, res) => {
             gender,
             tanggal_lahir,
             nomor_telepon,
-            kelas_id,
-            orangtua_id
+            nama_kelas,
+            jurusan,
+            orangtua 
         } = req.body;
 
-        // Validasi input 
-        if (!NISN || !NIPD || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
+        // Validasi input wajib siswa
+        if (!NISN || !NIPD || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !nama_kelas || !jurusan) {
             return res.status(400).json({
                 success: false,
-                message: "NISN, NIPD, nama siswa, alamat, gender, tanggal lahir, nomor telepon, dan kelas wajib diisi"
+                message: "Semua field siswa wajib diisi"
             });
         }
 
-        // validasi NISN harus angka
+        // Validasi NISN & NIPD harus angka
         if (!/^\d+$/.test(NISN)) {
-            return res.status(400).json({
-                success: false,
-                message: "NISN harus berupa angka"
-            });
+            return res.status(400).json({ success: false, message: "NISN harus berupa angka" });
         }
-
-        // validasi NIPD harus angka
         if (!/^\d+$/.test(NIPD)) {
-            return res.status(400).json({
-                success: false,
-                message: "NIPD harus berupa angka"
-            });
-        }
-
-
-        // Validasi kelas_id harus angka
-        if (isNaN(parseInt(kelas_id))) {
-            return res.status(400).json({
-                success: false,
-                message: "Kelas ID harus berupa angka"
-            });
+            return res.status(400).json({ success: false, message: "NIPD harus berupa angka" });
         }
 
         // Cek duplikasi NISN
-        const existingNISN = await prisma.Siswa.findFirst({
-            where: {
-                NISN,
-                deleted_at: null
-            }
-        });
-
+        const existingNISN = await prisma.Siswa.findFirst({ where: { NISN, deleted_at: null } });
         if (existingNISN) {
-            return res.status(409).json({
-                success: false,
-                message: "NISN sudah terdaftar"
-            });
+            return res.status(409).json({ success: false, message: "NISN sudah terdaftar" });
         }
 
         // Cek duplikasi NIPD
-        const existingNIPD = await prisma.Siswa.findFirst({
-            where: {
-                NIPD,
-                deleted_at: null
-            }
-        });
-
+        const existingNIPD = await prisma.Siswa.findFirst({ where: { NIPD, deleted_at: null } });
         if (existingNIPD) {
-            return res.status(409).json({
-                success: false,
-                message: "NIPD sudah terdaftar"
-            });
+            return res.status(409).json({ success: false, message: "NIPD sudah terdaftar" });
         }
 
-        // Validasi kelas exists 
+        // Cari kelas berdasarkan nama + jurusan
         const kelasExists = await prisma.Kelas.findFirst({
             where: {
-                id: parseInt(kelas_id),
+                kelas: nama_kelas,
+                jurusan: jurusan,
                 deleted_at: null
             }
         });
@@ -244,29 +211,12 @@ const createSiswa = async (req, res) => {
         if (!kelasExists) {
             return res.status(404).json({
                 success: false,
-                message: "Kelas tidak ditemukan"
+                message: `Kelas ${nama_kelas} jurusan ${jurusan} tidak ditemukan`
             });
         }
 
-        // Validasi orangtua exists 
-        if (orangtua_id) {
-            const orangTuaExists = await prisma.OrangTua.findFirst({
-                where: {
-                    id: parseInt(orangtua_id),
-                    deleted_at: null
-                }
-            });
-
-            if (!orangTuaExists) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Orang tua tidak ditemukan"
-                });
-            }
-        }
-
-        // Konversi tanggal lahir
-        let tanggalLahirDate = new Date(tanggal_lahir);
+        // Validasi format tanggal lahir
+        const tanggalLahirDate = new Date(tanggal_lahir);
         if (isNaN(tanggalLahirDate.getTime())) {
             return res.status(400).json({
                 success: false,
@@ -274,32 +224,58 @@ const createSiswa = async (req, res) => {
             });
         }
 
+        // Handle orang tua
+        let orangtuaId = null;
+        if (orangtua) {
+            const { NIK, nama_orangtua, nomor_telepon: noTelpOrtu, pekerjaan, alamat: alamatOrtu } = orangtua;
+
+            // Validasi field orang tua wajib semua diisi kalau object orangtua dikirim
+            if (!NIK || !nama_orangtua || !noTelpOrtu || !pekerjaan || !alamatOrtu) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Data orang tua tidak lengkap (NIK, nama_orangtua, nomor_telepon, pekerjaan, alamat wajib diisi)"
+                });
+            }
+
+            // Cek apakah orang tua sudah ada berdasarkan NIK
+            const existingOrangTua = await prisma.OrangTua.findFirst({
+                where: { NIK, deleted_at: null }
+            });
+
+            if (existingOrangTua) {
+                // Pakai yang sudah ada
+                orangtuaId = existingOrangTua.id;
+            } else {
+                // Buat orang tua baru
+                const newOrangTua = await prisma.OrangTua.create({
+                    data: {
+                        NIK,
+                        nama_orangtua,
+                        nomor_telepon: noTelpOrtu,
+                        pekerjaan,
+                        alamat: alamatOrtu
+                    }
+                });
+                orangtuaId = newOrangTua.id;
+            }
+        }
+
         // Buat data siswa baru
         const newSiswa = await prisma.siswa.create({
             data: {
-                NISN: NISN,
-                NIPD: NIPD,
+                NISN,
+                NIPD,
                 nama,
                 alamat,
                 gender,
                 tanggal_lahir: tanggalLahirDate,
                 nomor_telepon,
-                kelas_id: parseInt(kelas_id),
-                orangtua_id: orangtua_id ? parseInt(orangtua_id) : null
+                kelas_id: kelasExists.id,
+                orangtua_id: orangtuaId
             },
             include: {
-                kelas: {
-                    select: {
-                        kelas: true,
-                        jurusan: true,
-                    }
-                },
-                orang_tua: {
-                    select: {
-                        nama_orangtua: true,
-                        nomor_telepon: true
-                    }
-                }
+                kelas: { select: { kelas: true, jurusan: true } },
+                orang_tua: { select: { nama_orangtua: true, nomor_telepon: true } }
             }
         });
 
@@ -308,6 +284,7 @@ const createSiswa = async (req, res) => {
             message: "Berhasil menambahkan siswa baru",
             data: newSiswa
         });
+
     } catch (error) {
         console.error("Error creating siswa:", error);
         return res.status(500).json({
