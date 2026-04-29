@@ -4,8 +4,8 @@ const jadwalControllers = require("../controllers/jadwalControllers");
 const { verifyToken, checkRole } = require("../middleware/auth");
 
 router.get("/", jadwalControllers.getAllJadwal);
-router.post("/", verifyToken, checkRole(["admin"]), jadwalControllers.createJadwal);
-router.put("/:id", verifyToken, checkRole(["admin"]), jadwalControllers.updateJadwal);
-router.delete("/:id", verifyToken, checkRole(["admin"]), jadwalControllers.deleteJadwal);
+router.post("/", jadwalControllers.createJadwal);
+router.put("/:id",jadwalControllers.updateJadwal);
+router.delete("/:id", jadwalControllers.deleteJadwal);
 
 module.exports = router;
