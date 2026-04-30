@@ -375,7 +375,7 @@ const updateSiswa = async (req, res) => {
 
         // Validasi orangtua exists (jika diisi)
         if (orangtua_id) {
-            const orangTuaExists = await prisma.orang_tua.findFirst({
+            const orangTuaExists = await prisma.OrangTua.findFirst({
                 where: {
                     id: parseInt(orangtua_id),
                     deleted_at: null
