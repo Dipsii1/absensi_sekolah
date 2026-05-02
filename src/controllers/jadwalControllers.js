@@ -1,5 +1,19 @@
 const prisma = require("../config/prisma");
 const { formatDateTime, formatTime, validateTimeFormat, validateHari  } = require("../helper/date");
+const multer = require("multer");
+const ExcelJS = require("exceljs");
+
+// ─── Multer – simpan di memory, hanya terima .xlsx ───────────────────────────
+const storage = multer.memoryStorage();
+const xlsxFilter = (req, file, cb) => {
+    if (file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        file.originalname.toLowerCase().endsWith(".xlsx")) {
+        cb(null, true);
+    } else {
+        cb(new Error("Hanya file .xlsx yang diterima"), false);
+    }
+};
+const uploadXlsx = multer({ storage, fileFilter: xlsxFilter, limits: { fileSize: 5 * 1024 * 1024 } });
 
 
 
@@ -655,9 +669,216 @@ const deleteJadwal = async (req, res) => {
     }
 };
 
+// ─── Import Jadwal dari XLSX ─────────────────────────────────────────────────
+const importJadwal = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: "File XLSX wajib diunggah"
+            });
+        }
+
+        // Parse XLSX dari buffer
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(req.file.buffer);
+
+        // Cari sheet TEMPLATE_JADWAL
+        const ws = workbook.getWorksheet("TEMPLATE_JADWAL");
+        if (!ws) {
+            return res.status(400).json({
+                success: false,
+                message: "Sheet 'TEMPLATE_JADWAL' tidak ditemukan dalam file"
+            });
+        }
+
+        // Ambil header dari baris pertama yang berisi kolom header
+        // Template: baris 1=title, 2=subtitle, 3=header, 4+=data
+        // Header HARUS: HARI, KELAS, JURUSAN, NAMA_MAPEL, NAMA_GURU, JAM_MULAI, JAM_SELESAI
+        const REQUIRED_HEADERS = ["HARI", "KELAS", "JURUSAN", "NAMA_MAPEL", "NAMA_GURU", "JAM_MULAI", "JAM_SELESAI"];
+        let headerRowNum = null;
+        let colMap = {};
+
+        ws.eachRow((row, rowNum) => {
+            if (headerRowNum) return;
+            const vals = row.values.slice(1).map(v => String(v || "").trim().toUpperCase());
+            const found = REQUIRED_HEADERS.every(h => vals.includes(h));
+            if (found) {
+                headerRowNum = rowNum;
+                vals.forEach((v, i) => { colMap[v] = i + 1; });
+            }
+        });
+
+        if (!headerRowNum) {
+            return res.status(400).json({
+                success: false,
+                message: "Header kolom tidak ditemukan. Pastikan baris header memuat: " + REQUIRED_HEADERS.join(", ")
+            });
+        }
+
+        // Ambil semua lookup data sekaligus
+        const [allKelas, allMapel, allGuru] = await Promise.all([
+            prisma.kelas.findMany({ where: { deleted_at: null }, select: { id: true, kelas: true, jurusan: true } }),
+            prisma.mataPelajaran.findMany({ where: { deleted_at: null }, select: { id: true, nama_mapel: true } }),
+            prisma.guru.findMany({ where: { deleted_at: null }, select: { id: true, nama: true } }),
+        ]);
+
+        // Build lookup maps (case-insensitive)
+        const mapelMap = new Map(allMapel.map(m => [m.nama_mapel.toLowerCase().trim(), m.id]));
+        const guruMap  = new Map(allGuru.map(g => [g.nama.toLowerCase().trim(), g.id]));
+        const kelasMap = new Map(allKelas.map(k => [`${String(k.kelas).toLowerCase().trim()}|${k.jurusan.toLowerCase().trim()}`, k.id]));
+
+        const results = { created: 0, skipped: 0, errors: [] };
+
+        const dataRows = [];
+        ws.eachRow((row, rowNum) => {
+            if (rowNum <= headerRowNum) return;
+            dataRows.push({ row, rowNum });
+        });
+
+        for (const { row, rowNum } of dataRows) {
+            const getCellText = (col) => {
+                const cell = row.getCell(col);
+                const v = cell.value;
+                if (v === null || v === undefined) return "";
+                if (typeof v === "object" && v.text) return String(v.text).trim();
+                return String(v).trim();
+            };
+
+            const hari       = getCellText(colMap["HARI"]).toUpperCase();
+            const kelasStr   = getCellText(colMap["KELAS"]);
+            const jurusanStr = getCellText(colMap["JURUSAN"]);
+            const namaMapel  = getCellText(colMap["NAMA_MAPEL"]);
+            const namaGuru   = getCellText(colMap["NAMA_GURU"]);
+            const jamMulai   = getCellText(colMap["JAM_MULAI"]);
+            const jamSelesai = getCellText(colMap["JAM_SELESAI"]);
+
+            // Lewati baris kosong
+            if (!hari && !namaMapel && !namaGuru) continue;
+
+            // Validasi hari
+            if (!validateHari(hari)) {
+                results.errors.push({ row: rowNum, pesan: `Hari tidak valid: "${hari}"` });
+                results.skipped++;
+                continue;
+            }
+
+            // Validasi waktu
+            if (!validateTimeFormat(jamMulai) || !validateTimeFormat(jamSelesai)) {
+                results.errors.push({ row: rowNum, pesan: `Format jam tidak valid: "${jamMulai}" - "${jamSelesai}"` });
+                results.skipped++;
+                continue;
+            }
+
+            // Resolusi ID
+            const kelasKey = `${kelasStr.toLowerCase()}|${jurusanStr.toLowerCase()}`;
+            const kelas_id  = kelasMap.get(kelasKey);
+            const mapel_id  = mapelMap.get(namaMapel.toLowerCase());
+            const guru_id   = guruMap.get(namaGuru.toLowerCase());
+
+            if (!kelas_id) {
+                results.errors.push({ row: rowNum, pesan: `Kelas "${kelasStr} ${jurusanStr}" tidak ditemukan` });
+                results.skipped++;
+                continue;
+            }
+            if (!mapel_id) {
+                results.errors.push({ row: rowNum, pesan: `Mata pelajaran "${namaMapel}" tidak ditemukan` });
+                results.skipped++;
+                continue;
+            }
+            if (!guru_id) {
+                results.errors.push({ row: rowNum, pesan: `Guru "${namaGuru}" tidak ditemukan` });
+                results.skipped++;
+                continue;
+            }
+
+            const jamMulaiTime   = `${jamMulai}:00`;
+            const jamSelesaiTime = `${jamSelesai}:00`;
+
+            // Validasi jam selesai > jam mulai
+            const [mH, mM] = jamMulai.split(":").map(Number);
+            const [sH, sM] = jamSelesai.split(":").map(Number);
+            if (sH * 60 + sM <= mH * 60 + mM) {
+                results.errors.push({ row: rowNum, pesan: `Jam selesai (${jamSelesai}) harus setelah jam mulai (${jamMulai})` });
+                results.skipped++;
+                continue;
+            }
+
+            // Cek konflik kelas & guru
+            const overlapOr = [
+                { AND: [{ jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } }, { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }] },
+                { AND: [{ jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } }, { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }] },
+                { AND: [{ jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } }, { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }] },
+                { AND: [{ jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } }, { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }] },
+            ];
+
+            const [conflictKelas, conflictGuru] = await Promise.all([
+                prisma.jadwal.findFirst({ where: { kelas_id, hari, deleted_at: null, OR: overlapOr } }),
+                prisma.jadwal.findFirst({ where: { guru_id, hari, deleted_at: null, OR: overlapOr } }),
+            ]);
+
+            if (conflictKelas) {
+                results.errors.push({ row: rowNum, pesan: `Jadwal kelas bentrok pada hari ${hari} jam ${jamMulai}-${jamSelesai}` });
+                results.skipped++;
+                continue;
+            }
+            if (conflictGuru) {
+                results.errors.push({ row: rowNum, pesan: `Jadwal guru "${namaGuru}" bentrok pada hari ${hari} jam ${jamMulai}-${jamSelesai}` });
+                results.skipped++;
+                continue;
+            }
+
+            // Cek duplikat berdasarkan unique constraint
+            const duplicate = await prisma.jadwal.findFirst({
+                where: {
+                    kelas_id,
+                    hari,
+                    jam_mulai: new Date(`1970-01-01T${jamMulaiTime}`),
+                    deleted_at: null,
+                }
+            });
+
+            if (duplicate) {
+                results.errors.push({ row: rowNum, pesan: `Jadwal duplikat: kelas & jam sudah ada untuk hari ${hari}` });
+                results.skipped++;
+                continue;
+            }
+
+            // Buat jadwal
+            await prisma.jadwal.create({
+                data: {
+                    hari,
+                    kelas_id,
+                    mapel_id,
+                    guru_id,
+                    jam_mulai:   new Date(`1970-01-01T${jamMulaiTime}`),
+                    jam_selesai: new Date(`1970-01-01T${jamSelesaiTime}`),
+                }
+            });
+            results.created++;
+        }
+
+        return res.status(201).json({
+            success: true,
+            message: `Import selesai: ${results.created} jadwal berhasil dibuat, ${results.skipped} dilewati.`,
+            data: results
+        });
+
+    } catch (error) {
+        console.error("Error importing jadwal:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan saat import",
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     getAllJadwal,
     createJadwal,
     updateJadwal,
-    deleteJadwal
+    deleteJadwal,
+    importJadwal,
+    uploadXlsx
 };

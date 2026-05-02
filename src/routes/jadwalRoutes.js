@@ -5,7 +5,8 @@ const { verifyToken, checkRole } = require("../middleware/auth");
 
 router.get("/", jadwalControllers.getAllJadwal);
 router.post("/", jadwalControllers.createJadwal);
-router.put("/:id",jadwalControllers.updateJadwal);
+router.post("/import", jadwalControllers.uploadXlsx.single("file"), jadwalControllers.importJadwal);
+router.put("/:id", jadwalControllers.updateJadwal);
 router.delete("/:id", jadwalControllers.deleteJadwal);
 
 module.exports = router;
