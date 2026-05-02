@@ -1,4 +1,6 @@
 const prisma = require("../config/prisma");
+const path = require("path");
+const xlsx = require("xlsx");
 
 // get all siswa 
 const getAllSiswa = async (req, res) => {
@@ -543,10 +545,251 @@ const deleteSiswa = async (req, res) => {
     }
 };
 
+
+const importSiswa = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: "File tidak ditemukan. Harap upload file Excel atau CSV"
+            });
+        }
+
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        if (![".xlsx", ".xls", ".csv"].includes(ext)) {
+            return res.status(400).json({
+                success: false,
+                message: "Format file tidak didukung. Gunakan .xlsx, .xls, atau .csv"
+            });
+        }
+
+        const workbook = xlsx.read(req.file.buffer, { type: "buffer", cellDates: true });
+        const rows = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+
+        if (rows.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "File kosong atau tidak ada data yang dapat dibaca"
+            });
+        }
+
+        const requiredColumns = [
+            "NISN", "NIPD", "nama", "alamat", "gender",
+            "tanggal_lahir", "nomor_telepon", "nama_kelas", "jurusan"
+        ];
+        const missingColumns = requiredColumns.filter(col => !Object.keys(rows[0]).includes(col));
+        if (missingColumns.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Kolom wajib tidak ditemukan: ${missingColumns.join(", ")}`
+            });
+        }
+
+        const allNISN    = [...new Set(rows.map(r => String(r.NISN).trim()).filter(Boolean))];
+        const allNIPD    = [...new Set(rows.map(r => String(r.NIPD).trim()).filter(Boolean))];
+        const allNIKOrtu = [...new Set(rows.map(r => String(r.NIK_orangtua || "").trim()).filter(Boolean))];
+
+        const [existingSiswaNISN, existingSiswaNIPD, existingOrtuList, kelasList] = await Promise.all([
+            prisma.siswa.findMany({
+                where: { NISN: { in: allNISN }, deleted_at: null },
+                select: { NISN: true }
+            }),
+            prisma.siswa.findMany({
+                where: { NIPD: { in: allNIPD }, deleted_at: null },
+                select: { NIPD: true }
+            }),
+            allNIKOrtu.length > 0
+                ? prisma.OrangTua.findMany({
+                    where: { NIK: { in: allNIKOrtu }, deleted_at: null },
+                    select: { id: true, NIK: true }
+                })
+                : Promise.resolve([]),
+            prisma.kelas.findMany({
+                where: { deleted_at: null },
+                select: { id: true, kelas: true, jurusan: true }
+            })
+        ]);
+
+        const existingNISNSet = new Set(existingSiswaNISN.map(s => s.NISN));
+        const existingNIPDSet = new Set(existingSiswaNIPD.map(s => s.NIPD));
+        const ortuMap         = new Map(existingOrtuList.map(o => [o.NIK, o.id]));
+        const kelasMap        = new Map(kelasList.map(k => [`${k.kelas}__${k.jurusan}`, k.id]));
+
+        const errors     = [];
+        const toInsert   = [];
+        const nisnInFile = new Set();
+        const nipdInFile = new Set();
+        const VALID_GENDER = ["L", "P"];
+
+        for (let i = 0; i < rows.length; i++) {
+            const row       = rows[i];
+            const rowNum    = i + 2;
+            const rowErrors = [];
+
+            const NISN          = String(row.NISN).trim();
+            const NIPD          = String(row.NIPD).trim();
+            const nama          = String(row.nama).trim();
+            const alamat        = String(row.alamat).trim();
+            const gender        = String(row.gender).trim();
+            const tanggal_lahir = row.tanggal_lahir;
+            const nomor_telepon = String(row.nomor_telepon).trim();
+            const nama_kelas    = String(row.nama_kelas).trim();
+            const jurusan       = String(row.jurusan).trim();
+
+            const NIK_ortu       = row.NIK_orangtua           ? String(row.NIK_orangtua).trim()           : "";
+            const nama_ortu      = row.nama_orangtua           ? String(row.nama_orangtua).trim()          : "";
+            const telp_ortu      = row.nomor_telepon_orangtua  ? String(row.nomor_telepon_orangtua).trim() : "";
+            const pekerjaan_ortu = row.pekerjaan_orangtua      ? String(row.pekerjaan_orangtua).trim()     : "";
+            const alamat_ortu    = row.alamat_orangtua         ? String(row.alamat_orangtua).trim()        : "";
+
+            if (!NISN)          rowErrors.push("NISN kosong");
+            if (!NIPD)          rowErrors.push("NIPD kosong");
+            if (!nama)          rowErrors.push("nama kosong");
+            if (!alamat)        rowErrors.push("alamat kosong");
+            if (!gender)        rowErrors.push("gender kosong");
+            if (!tanggal_lahir) rowErrors.push("tanggal_lahir kosong");
+            if (!nomor_telepon) rowErrors.push("nomor_telepon kosong");
+            if (!nama_kelas)    rowErrors.push("nama_kelas kosong");
+            if (!jurusan)       rowErrors.push("jurusan kosong");
+
+            if (NISN && !/^\d+$/.test(NISN)) rowErrors.push("NISN harus berupa angka");
+            if (NIPD && !/^\d+$/.test(NIPD)) rowErrors.push("NIPD harus berupa angka");
+
+            if (gender && !VALID_GENDER.includes(gender)) {
+                rowErrors.push(`gender tidak valid (harus L atau P, ditemukan: "${gender}")`);
+            }
+
+            if (NISN && existingNISNSet.has(NISN)) rowErrors.push(`NISN ${NISN} sudah terdaftar di database`);
+            if (NIPD && existingNIPDSet.has(NIPD)) rowErrors.push(`NIPD ${NIPD} sudah terdaftar di database`);
+
+            if (NISN) {
+                if (nisnInFile.has(NISN)) rowErrors.push(`NISN ${NISN} duplikat dalam file`);
+                else nisnInFile.add(NISN);
+            }
+            if (NIPD) {
+                if (nipdInFile.has(NIPD)) rowErrors.push(`NIPD ${NIPD} duplikat dalam file`);
+                else nipdInFile.add(NIPD);
+            }
+
+            let tanggalLahirDate = null;
+            if (tanggal_lahir) {
+                tanggalLahirDate = tanggal_lahir instanceof Date ? tanggal_lahir : new Date(tanggal_lahir);
+                if (isNaN(tanggalLahirDate.getTime())) {
+                    rowErrors.push("Format tanggal_lahir tidak valid (gunakan YYYY-MM-DD)");
+                    tanggalLahirDate = null;
+                }
+            }
+
+            let kelasId = null;
+            if (nama_kelas && jurusan) {
+                kelasId = kelasMap.get(`${nama_kelas}__${jurusan}`) ?? null;
+                if (!kelasId) rowErrors.push(`Kelas ${nama_kelas} jurusan ${jurusan} tidak ditemukan`);
+            }
+
+            let orangtuaId   = null;
+            let orangtuaBaru = null;
+
+            if (NIK_ortu) {
+                if (!nama_ortu || !telp_ortu || !pekerjaan_ortu || !alamat_ortu) {
+                    rowErrors.push("Data orang tua tidak lengkap (nama, nomor_telepon, pekerjaan, alamat wajib diisi)");
+                } else if (ortuMap.has(NIK_ortu)) {
+                    orangtuaId = ortuMap.get(NIK_ortu);
+                } else {
+                    orangtuaBaru = {
+                        NIK: NIK_ortu,
+                        nama_orangtua: nama_ortu,
+                        nomor_telepon: telp_ortu,
+                        pekerjaan: pekerjaan_ortu,
+                        alamat: alamat_ortu
+                    };
+                }
+            }
+
+            if (rowErrors.length > 0) {
+                errors.push({ row: rowNum, errors: rowErrors });
+                continue;
+            }
+
+            toInsert.push({
+                NISN, NIPD, nama, alamat, gender,
+                tanggal_lahir: tanggalLahirDate,
+                nomor_telepon,
+                kelas_id: kelasId,
+                orangtua_id: orangtuaId,
+                orangtuaBaru
+            });
+        }
+
+        if (errors.length > 0) {
+            return res.status(422).json({
+                success: false,
+                message: `Import gagal. Ditemukan ${errors.length} baris dengan error`,
+                errors
+            });
+        }
+
+        // ── Single transaction, no chunking ──
+        await prisma.$transaction(async (tx) => {
+            const ortuBaruList = toInsert.filter(s => s.orangtuaBaru);
+            const nikUnik = new Map(ortuBaruList.map(s => [s.orangtuaBaru.NIK, s.orangtuaBaru]));
+
+            for (const [nik, dataOrtu] of nikUnik) {
+                const newOrtu = await tx.OrangTua.create({ data: dataOrtu });
+                ortuMap.set(nik, newOrtu.id);
+            }
+
+            const siswaNoOrtu = toInsert
+                .filter(s => !s.orangtuaBaru)
+                .map(s => ({
+                    NISN: s.NISN, NIPD: s.NIPD, nama: s.nama,
+                    alamat: s.alamat, gender: s.gender,
+                    tanggal_lahir: s.tanggal_lahir,
+                    nomor_telepon: s.nomor_telepon,
+                    kelas_id: s.kelas_id,
+                    orangtua_id: s.orangtua_id
+                }));
+
+            if (siswaNoOrtu.length > 0) {
+                await tx.siswa.createMany({ data: siswaNoOrtu });
+            }
+
+            for (const s of toInsert.filter(s => s.orangtuaBaru)) {
+                await tx.siswa.create({
+                    data: {
+                        NISN: s.NISN, NIPD: s.NIPD, nama: s.nama,
+                        alamat: s.alamat, gender: s.gender,
+                        tanggal_lahir: s.tanggal_lahir,
+                        nomor_telepon: s.nomor_telepon,
+                        kelas_id: s.kelas_id,
+                        orangtua_id: ortuMap.get(s.orangtuaBaru.NIK)
+                    }
+                });
+            }
+        }, {
+            timeout: 30000
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: `Berhasil mengimport ${toInsert.length} data siswa`,
+            total_imported: toInsert.length
+        });
+
+    } catch (error) {
+        console.error("Error importing siswa:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     getAllSiswa,
     getSiswaById,
     createSiswa,
     updateSiswa,
-    deleteSiswa
+    deleteSiswa,
+    importSiswa
 };
