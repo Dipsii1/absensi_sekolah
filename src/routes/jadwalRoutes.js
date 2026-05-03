@@ -1,11 +1,18 @@
 const express = require("express");
 const router = express.Router();
-const jadwalControllers = require("../controllers/jadwalControllers");
-const { verifyToken, checkRole } = require("../middleware/auth");
+const upload = require("../middleware/upload");
+const {
+  getAllJadwal,
+  createJadwal,
+  updateJadwal,
+  deleteJadwal,
+  importJadwal,
+} = require("../controllers/jadwalControllers");
 
-router.get("/", jadwalControllers.getAllJadwal);
-router.post("/", jadwalControllers.createJadwal);
-router.put("/:id",jadwalControllers.updateJadwal);
-router.delete("/:id", jadwalControllers.deleteJadwal);
+router.get("/",        getAllJadwal);
+router.post("/",       createJadwal);
+router.post("/import", upload.single("file"), importJadwal);
+router.put("/:id",     updateJadwal);
+router.delete("/:id",  deleteJadwal);
 
 module.exports = router;
