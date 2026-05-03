@@ -322,12 +322,17 @@ const getAllAbsensi = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        const { tanggal, siswa_id, kelas_id, status_tapin } = req.query;
+        const { tanggal, tanggal_mulai, tanggal_akhir, siswa_id, kelas_id, status_tapin } = req.query;
 
         const whereCondition = { deleted_at: null };
 
         if (tanggal) {
             whereCondition.tanggal = toDateOnly(tanggal);
+        } else if (tanggal_mulai && tanggal_akhir) {
+            whereCondition.tanggal = {
+                gte: toDateOnly(tanggal_mulai),
+                lte: toDateOnly(tanggal_akhir)
+            };
         }
 
         if (siswa_id) whereCondition.siswa_id = siswa_id;
