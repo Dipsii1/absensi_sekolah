@@ -185,48 +185,26 @@ const getRfidById = async (req, res) => {
 // create RFID 
 const createRFID = async (req, res) => {
     try {
-        const { uid_rfid, siswa_id } = req.body
+        const { uid_rfid, siswa_id, is_active = true } = req.body;
 
-        // validasi input
+        // Validasi input
         if (!uid_rfid || !siswa_id) {
             return res.status(400).json({
                 success: false,
-                message: "Semua field harus terisi"
-            })
-        }
-
-        // cek duplikasi RFID
-        const existingRFID = await prisma.RFID.findFirst({
-            where: {
-                uid_rfid,
-                deleted_at: null
-            }
-        });
-
-        if (existingRFID) {
-            return res.status(409).json({
-                success: false,
-                message: "RFID sudah terdaftar"
+                message: "uid_rfid dan siswa_id wajib diisi"
             });
         }
 
-        // cek duplikasi siswa yang sudah mempunyai RFID aktif
-        const existingSiswaRFID = await prisma.RFID.findFirst({
-            where: {
-                siswa_id,
-                is_active: true,
-                deleted_at: null
-            }
-        });
-
-        if (existingSiswaRFID) {
-            return res.status(409).json({
+        // Validasi format UUID untuk siswa_id
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!UUID_REGEX.test(siswa_id)) {
+            return res.status(400).json({
                 success: false,
-                message: "Siswa sudah mempunyai RFID yang aktif"
-            })
+                message: "Format siswa_id tidak valid"
+            });
         }
 
-        // cek apakah ada siswa
+        // Cek siswa exist
         const siswaExists = await prisma.siswa.findFirst({
             where: {
                 id: siswa_id,
@@ -241,38 +219,89 @@ const createRFID = async (req, res) => {
             });
         }
 
-        // cek apakah ada RFID yang sudah di soft delete dengan uid_rfid yang sama
-        const existingDeleteRFID = await prisma.RFID.findFirst({
-            where: {
-                uid_rfid,
-            }
-        });
-
-        if (existingDeleteRFID && existingDeleteRFID.deleted_at) {
-            // akan restore data yang sudah di soft delete
-            const restoredRFID = await prisma.RFID.update({
-                where: { id: existingDeleteRFID.id },
-                data: {
+        // Cek siswa sudah punya RFID aktif 
+        if (is_active) {
+            const siswaActiveRFID = await prisma.rFID.findFirst({
+                where: {
                     siswa_id,
                     is_active: true,
                     deleted_at: null
                 }
             });
 
+            if (siswaActiveRFID) {
+                return res.status(409).json({
+                    success: false,
+                    message: "Siswa sudah mempunyai RFID yang aktif"
+                });
+            }
+        }
+
+        // Cek uid_rfid 
+        const existingRFID = await prisma.rFID.findFirst({
+            where: { uid_rfid, deleted_at: null }
+        });
+
+        if (existingRFID) {
+            if (!existingRFID.deleted_at) {
+                // uid_rfid aktif atau sudah ada yang pakai
+                return res.status(409).json({
+                    success: false,
+                    message: "UID RFID sudah terdaftar"
+                });
+            }
+
+            // uid_rfid pernah di-soft delete — restore
+            const restored = await prisma.rFID.update({
+                where: { id: existingRFID.id },
+                data: {
+                    siswa_id,
+                    is_active,
+                    deleted_at: null
+                },
+                include: {
+                    siswa: {
+                        select: {
+                            id: true,
+                            nama: true,
+                            kelas: {
+                                select: {
+                                    kelas: true,
+                                    jurusan: true,
+                                    tahun: {
+                                        select: {
+                                            tahun_ajaran: true,
+                                            is_active: true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
             return res.status(200).json({
                 success: true,
-                message: "Berhasil mengembalikan data RFID yang dihapus",
-                data: restoredRFID
+                message: "Berhasil mengembalikan data RFID yang pernah dihapus",
+                data: {
+                    id: restored.id,
+                    uid_rfid: restored.uid_rfid,
+                    siswa_id: restored.siswa_id,
+                    is_active: restored.is_active,
+                    siswa: restored.siswa,
+                    created_at: formatDateTime(restored.created_at),
+                    updated_at: formatDateTime(restored.updated_at)
+                }
             });
         }
 
-
-        // buat RFID baru
-        const newRFID = await prisma.RFID.create({
+        //  Buat RFID baru
+        const newRFID = await prisma.rFID.create({
             data: {
                 uid_rfid,
                 siswa_id,
-                is_active: true
+                is_active
             },
             include: {
                 siswa: {
@@ -294,33 +323,31 @@ const createRFID = async (req, res) => {
                     }
                 }
             }
-        })
-
-        // Format response
-        const formatedRFID = {
-            id: newRFID.id,
-            uid_rfid: newRFID.uid_rfid,
-            siswa_id: newRFID.siswa_id,
-            is_active: newRFID.is_active,
-            siswa: newRFID.siswa,
-            created_at: formatDateTime(newRFID.created_at),
-            updated_at: formatDateTime(newRFID.updated_at)
-        };
+        });
 
         return res.status(201).json({
             success: true,
             message: "Berhasil membuat data RFID baru",
-            data: formatedRFID
-        })
+            data: {
+                id: newRFID.id,
+                uid_rfid: newRFID.uid_rfid,
+                siswa_id: newRFID.siswa_id,
+                is_active: newRFID.is_active,
+                siswa: newRFID.siswa,
+                created_at: formatDateTime(newRFID.created_at),
+                updated_at: formatDateTime(newRFID.updated_at)
+            }
+        });
+
     } catch (error) {
-        console.error("Error creating RFID:", error)
+        console.error("Error creating RFID:", error);
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
             error: error.message
-        })
+        });
     }
-}
+};
 
 
 // update RFID
