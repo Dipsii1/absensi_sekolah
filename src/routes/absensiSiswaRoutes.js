@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const absensi = require("../controllers/absensiSiswaControllers");
+const { verifyToken } = require("../middleware/auth");
+router.use(verifyToken);
+
 
 // Tap In & Tap Out
 router.post('/tap-in', absensi.tapIn);

@@ -1,18 +1,21 @@
 const express = require("express");
 const router = express.Router();
 const detailAbsensi = require("../controllers/detailAbsensiControllers.js");
+const { verifyToken, checkRole } = require("../middleware/auth");
+
+router.use(verifyToken);
 
 // rekap absensi (semua kelas)
 router.get('/rekap-absensi', detailAbsensi.getRekapAbsensiSemuaKelas);
 
 // absensi guru
-router.post('/absensi-guru', detailAbsensi.absensiByGuru);
-router.put('/update-status', detailAbsensi.updateStatusAbsensiManual);
-router.delete('/:id', detailAbsensi.deleteDetailAbsensi);
+router.post('/absensi-guru',checkRole("GURU"), detailAbsensi.absensiByGuru);
+router.put('/update-status', checkRole("GURU"), detailAbsensi.updateStatusAbsensiManual);
+router.delete('/:id', checkRole("GURU"), detailAbsensi.deleteDetailAbsensi);
 
 // Walas 
 router.get('/pratinjau-walas', detailAbsensi.pratinjauWalas);
-router.post('/absensi-walas', detailAbsensi.absensiManualWalas)
+router.post('/absensi-walas', checkRole("WALAS"), detailAbsensi.absensiManualWalas)
 
 // Rekap Siswa
 router.get('/rekap-siswa', detailAbsensi.getRekapAbsensiSiswa);
