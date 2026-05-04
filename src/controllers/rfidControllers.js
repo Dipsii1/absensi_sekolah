@@ -1,5 +1,5 @@
 const prisma = require("../config/prisma");
-const { formatDateTime } = require("../helper/date");
+const { formatDateTime } = require("../helper/indexUtils");
 
 // get all
 const getAllRfid = async (req, res) => {

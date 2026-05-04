@@ -1,3 +1,4 @@
+// Format date + time ke string ID (dd/mm/yyyy HH:MM:SS)
 const formatDateTime = (date) => {
     if (!date) return null;
     return new Date(date).toLocaleString('id-ID', {
@@ -11,6 +12,7 @@ const formatDateTime = (date) => {
     });
 };
 
+// Format date ke string ID (dd/mm/yyyy)
 const formatDate = (date) => {
     if (!date) return null;
     return new Date(date).toLocaleDateString('id-ID', {
@@ -21,6 +23,7 @@ const formatDate = (date) => {
     });
 };
 
+// Format time ke HH:MM
 const formatTime = (time) => {
     if (!time) return null;
     if (typeof time === 'string') {
@@ -32,24 +35,6 @@ const formatTime = (time) => {
         hour12: false,
         timeZone: 'Asia/Jakarta'
     });
-};
-
-const VALID_HARI = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-
-const validateHari = (hari) => {
-    if (!hari) return false;
-    return VALID_HARI.includes(hari.toUpperCase());
-};
-
-const getHariFromDate = (date) => {
-    if (!date) return null;
-    const wibDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
-    return VALID_HARI[wibDate.getDay()];
-};
-
-const validateTimeFormat = (time) => {
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    return timeRegex.test(time);
 };
 
 // Ambil string tanggal hari ini dalam WIB "YYYY-MM-DD"
@@ -88,17 +73,20 @@ const getWeekNumber = (date) => {
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 };
 
+const validateTimeFormat = (time) => {
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    return timeRegex.test(time);
+};
+
 module.exports = {
     formatDateTime,
     formatDate,
     formatTime,
     validateTimeFormat,
-    validateHari,
-    getHariFromDate,
-    getTodayWIB,
     getTodayStrWIB,
     toDateOnly,
+    getTodayWIB,
     parseTanggal,
     getTanggalRangeWIB,
-    getWeekNumber
+    getWeekNumber,
 };

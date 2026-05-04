@@ -1,6 +1,6 @@
 const prisma = require("../config/prisma");
 const { sendTapInNotification, sendTapOutNotification } = require("../services/telegramServices");
-const { formatDate, formatTime, formatDateTime, getHariFromDate, getTodayStrWIB, toDateOnly, getTanggalRangeWIB } = require("../helper/date");
+const { formatDate, formatTime, formatDateTime, getHariFromDate, getTodayStrWIB, toDateOnly, getTanggalRangeWIB } = require("../helper/indexUtils");
 
 // Tap In 
 const tapIn = async (req, res) => {

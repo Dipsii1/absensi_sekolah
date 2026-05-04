@@ -1,6 +1,6 @@
 const prisma = require("../config/prisma");
 const { StatusAbsensi } = require("@prisma/client");
-const { formatDate, formatTime, formatDateTime, validateHari, getHariFromDate, parseTanggal, getTodayWIB, getWeekNumber } = require("../helper/date");
+const { formatDate, formatTime, formatDateTime, validateHari, getHariFromDate, parseTanggal, getTodayWIB, getWeekNumber } = require("../helper/indexUtils");
 
 const NAMA_BULAN = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
