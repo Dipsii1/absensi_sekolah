@@ -1219,6 +1219,9 @@ const GetRekapAbsensiKelasSemester = async (req, res) => {
     }
 };
 
+// IF siswa belum tap in dan tidak ada konfirmasi walas, maka status rekomendasi tetap ALPHA
+
+
 // Pratinjau walas
 const pratinjauWalas = async (req, res) => {
     try {

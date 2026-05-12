@@ -99,6 +99,7 @@ model Siswa {
   kelas     Kelas?         @relation(fields: [kelas_id], references: [id], onDelete: SetNull)
   rfid      RFID[]
   absensi   AbsensiSiswa[]
+  permintaan_status PermintaanStatusAbsensi[]
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
@@ -213,6 +214,8 @@ model Guru {
   jadwal         Jadwal[]
   detail_absensi DetailAbsensiSiswa[]
   kelas_walas    Kelas[]              @relation("WaliKelas")
+  permintaan_sebagai_guru  PermintaanStatusAbsensi[] @relation("GuruPermintaan")
+  permintaan_sebagai_walas PermintaanStatusAbsensi[] @relation("WalasPermintaan")
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
@@ -274,6 +277,7 @@ model Kelas {
   walas  Guru?    @relation("WaliKelas", fields: [walas_id], references: [id], onDelete: Restrict)
   siswa  Siswa[]
   jadwal Jadwal[]
+  permintaan_status PermintaanStatusAbsensi[]
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
@@ -302,4 +306,33 @@ model Tahun {
   @@index([is_active])
   @@index([deleted_at])
   @@map("tahun_ajaran")
+}
+
+model PermintaanStatusAbsensi {
+  id          Int           @id @default(autoincrement())
+  siswa_id    String        @db.Uuid
+  kelas_id    Int
+  guru_id     Int
+  walas_id    Int
+  tanggal     DateTime      @db.Date
+  status_lama String?       @db.VarChar(20)
+  status_baru StatusAbsensi
+  keterangan  String?       @db.Text
+  is_pending  Boolean       @default(true)
+  is_approved Boolean       @default(false)
+  is_auto_approved Boolean  @default(false)
+  expires_at  DateTime      @db.Timestamptz(6)
+
+  siswa Siswa @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
+  kelas Kelas @relation(fields: [kelas_id], references: [id], onDelete: Cascade)
+  guru  Guru  @relation("GuruPermintaan", fields: [guru_id], references: [id], onDelete: Cascade)
+  walas Guru  @relation("WalasPermintaan", fields: [walas_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([walas_id, is_pending])
+  @@index([siswa_id, tanggal])
+  @@index([expires_at, is_pending])
+  @@map("permintaan_status_absensi")
 }
