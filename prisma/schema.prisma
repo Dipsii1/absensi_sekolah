@@ -91,7 +91,7 @@ model Siswa {
   nama          String   @db.VarChar(255)
   alamat        String   @db.Text
   gender        Gender
-  status_siswa   StatusSiswa
+  status_siswa   StatusSiswa @default(Active)
   tanggal_lahir DateTime @db.Date
   nomor_telepon String   @db.VarChar(15)
 
