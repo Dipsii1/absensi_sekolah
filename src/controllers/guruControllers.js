@@ -100,6 +100,7 @@ const getGuruWalas = async (req, res) => {
         const guru = await prisma.guru.findMany({
             where: {
                 deleted_at: null,
+
                 user: {
                     userRole: {
                         some: {
@@ -109,11 +110,17 @@ const getGuruWalas = async (req, res) => {
                             }
                         }
                     }
+                },
+
+                kelas_walas: {
+                    none: {}
                 }
             },
-            orderBy:{
+
+            orderBy: {
                 nama: "asc"
             },
+
             select: {
                 id: true,
                 NIP: true,
@@ -123,11 +130,13 @@ const getGuruWalas = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: "Berhasil mendapatkan data guru dengan role walas",
+            message: "Berhasil mendapatkan data guru walas yang belum mempunyai kelas",
             data: guru,
         });
+
     } catch (error) {
         console.error("Error getting guru walas:", error);
+
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
