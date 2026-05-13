@@ -5,6 +5,7 @@ const { verifyToken, checkRole} = require("../middleware/auth")
 
 router.use(verifyToken);
 
+
 router.get("/", kelasControllers.getAllKelas);
 router.patch("/:id/assign-walas",checkRole("SUPER_ADMIN", "ADMIN"), kelasControllers.assignWalas);
 router.post("/", checkRole("ADMIN", "SUPER_ADMIN"), kelasControllers.createKelas);

@@ -13,6 +13,12 @@ enum StatusSiswa {
   Alumni
 }
 
+
+enum StatusKelas {
+  Active
+  Inactive
+}
+
 enum StatusAbsensi {
   HADIR
   IZIN
@@ -279,6 +285,7 @@ model Kelas {
   tahun_ajaran_id   Int
   telegram_group_id String? @db.VarChar(50)
   walas_id          Int?
+  status_kelas      StatusKelas @default(Active) 
 
   tahun             Tahun                     @relation(fields: [tahun_ajaran_id], references: [id], onDelete: Restrict)
   walas             Guru?                     @relation("WaliKelas", fields: [walas_id], references: [id], onDelete: Restrict)
