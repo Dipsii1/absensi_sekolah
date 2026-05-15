@@ -56,7 +56,7 @@ const extractRoles = (userRole) => userRole?.map(ur => ur.role) ?? [];
 // Register
 const register = async (req, res) => {
     try {
-        const { email, password, role, guru_id, role_names } = req.body; 
+        const { email, password, role, guru_id, role_names } = req.body;
 
         // Validasi input 
         if (!email || !password || !role) {
@@ -81,7 +81,7 @@ const register = async (req, res) => {
             });
         }
 
-        
+
         const roleCache = await getRoleCache();
 
         const normalizeRoleName = (r) => {
@@ -180,8 +180,8 @@ const register = async (req, res) => {
                     guru_id: guruIdValue,
                     deleted_at: null,
                     userRole: {
-                        deleteMany: {},          
-                        create: userRoleData,     
+                        deleteMany: {},
+                        create: userRoleData,
                     },
                 },
                 select: userSelect,
@@ -230,24 +230,55 @@ const register = async (req, res) => {
 // Login
 const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { username, password } = req.body;
 
-        if (!email || !password) {
+        if (!username || !password) {
             return res.status(400).json({
                 success: false,
-                message: "Email dan password wajib diisi",
+                message: "Username dan password wajib diisi",
             });
         }
 
-        const user = await prisma.user.findFirst({
-            where: { email, deleted_at: null },
+        // Autentikasi ke YSBO API
+        let ysboData;
+        try {
+            const ysboResponse = await fetch(process.env.YSBO_API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    version: "v1",
+                    apps_name: "TB Attendance",
+                    username: username,
+                    password,
+                }),
+            });
+
+            ysboData = await ysboResponse.json();
+
+            if (ysboData.status_code !== 200) {
+                return res.status(401).json({
+                    success: false,
+                    message: ysboData.message || "Username atau password salah",
+                });
+            }
+        } catch (fetchError) {
+            console.error("YSBO API unreachable:", fetchError);
+            return res.status(503).json({
+                success: false,
+                message: "Layanan autentikasi eksternal tidak tersedia",
+            });
+        }
+
+        const ysboUser = ysboData.data;
+
+        // Cari user lokal berdasarkan username dari YSBO
+        let user = await prisma.user.findFirst({
+            where: { username: ysboUser.username, deleted_at: null },
             include: {
                 userRole: {
                     include: {
-                        role: {
-                            select: { id: true, name: true }
-                        }
-                    }
+                        role: { select: { id: true, name: true } },
+                    },
                 },
                 guru: {
                     select: {
@@ -255,23 +286,49 @@ const login = async (req, res) => {
                         NIP: true,
                         nama: true,
                         nomor_telepon: true,
-                    }
+                    },
                 },
             },
         });
 
+        // Jika user belum ada, auto-register
         if (!user) {
-            return res.status(401).json({
-                success: false,
-                message: "Email atau password salah",
-            });
-        }
+            const roleCache = await getRoleCache();
+            const defaultRole = roleCache["GURU"];
 
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({
-                success: false,
-                message: "Email atau password salah",
+            if (!defaultRole) {
+                return res.status(500).json({
+                    success: false,
+                    message: "Role default tidak ditemukan di database",
+                });
+            }
+
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            user = await prisma.user.create({
+                data: {
+                    username: ysboUser.username,
+                    email: ysboUser.email ?? null,
+                    password: hashedPassword,
+                    userRole: {
+                        create: [{ role_id: defaultRole.id }],
+                    },
+                },
+                include: {
+                    userRole: {
+                        include: {
+                            role: { select: { id: true, name: true } },
+                        },
+                    },
+                    guru: {
+                        select: {
+                            id: true,
+                            NIP: true,
+                            nama: true,
+                            nomor_telepon: true,
+                        },
+                    },
+                },
             });
         }
 
@@ -280,11 +337,10 @@ const login = async (req, res) => {
         const accessToken = jwt.sign(
             {
                 id: user.id,
+                username: user.username, 
                 email: user.email,
-                // Array semua role_id yang dimiliki user
-                role_ids: roles.map(r => r.id),
-                // Array semua role_name uppercase
-                role_names: roles.map(r => r.name.toUpperCase()),
+                role_ids: roles.map((r) => r.id),
+                role_names: roles.map((r) => r.name.toUpperCase()),
                 guru_id: user.guru_id,
             },
             process.env.JWT_SECRET,
@@ -298,7 +354,8 @@ const login = async (req, res) => {
             message: "Login berhasil",
             data: {
                 user: { ...userData, roles },
-                accessToken
+                accessToken,
+                ysboToken: ysboUser.token ?? null,
             },
         });
 
