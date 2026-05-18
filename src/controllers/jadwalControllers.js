@@ -133,7 +133,7 @@ const createJadwal = async (req, res) => {
         if (!validateHari(hari)) {
             return res.status(400).json({
                 success: false,
-                message: "Hari tidak valid (gunakan: SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU)"
+                message: "Hari tidak valid (gunakan: Senin, Selasa, Rabu, Kamis, Jumat, Sabtu)"
             });
         }
 
@@ -385,7 +385,7 @@ const updateJadwal = async (req, res) => {
         if (!validateHari(hari)) {
             return res.status(400).json({
                 success: false,
-                message: "Hari tidak valid (gunakan: SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU)"
+                message: "Hari tidak valid (gunakan: Senin, Selasa, Rabu, Kamis, Jumat, Sabtu)"
             });
         }
 
@@ -689,7 +689,7 @@ const importJadwal = async (req, res) => {
             return res.status(400).json({ success: false, message: "File kosong atau tidak ada data" });
         }
 
-        const VALID_HARI = ["SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
+        const VALID_HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
         const REQUIRED_COLUMNS = ["HARI", "KELAS", "JURUSAN", "NAMA_MAPEL", "NAMA_GURU", "JAM_MULAI", "JAM_SELESAI"];
 
         const missingCols = REQUIRED_COLUMNS.filter(col => !headers.includes(col));

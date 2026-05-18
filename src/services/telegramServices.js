@@ -252,7 +252,7 @@ const sendTapInNotification = async (telegramGroupId, data) => {
 🏫 Kelas: ${data.kelas}
 📅 Tanggal: ${data.tanggal}
 ⏰ Waktu: ${data.tap_in}
-📌 Status: ${data.status_tapin === 'TEPAT_WAKTU' ? '✅ Tepat Waktu' : '⚠️ Terlambat'}
+📌 Status: ${data.status_tapin === 'Tepat_Waktu' ? '✅ Tepat Waktu' : '⚠️ Terlambat'}
 `;
 
   try {

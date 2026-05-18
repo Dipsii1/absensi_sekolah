@@ -1,4 +1,4 @@
-const VALID_HARI = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+const VALID_HARI = ['MINGGU', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
 const validateHari = (hari) => {
     if (!hari) return false;

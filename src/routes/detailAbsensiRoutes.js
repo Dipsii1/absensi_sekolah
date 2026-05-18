@@ -19,7 +19,8 @@ router.post('/absensi-walas', checkRole("WALAS"), detailAbsensi.absensiManualWal
 
 // Rekap Siswa
 router.get('/rekap-siswa', detailAbsensi.getRekapAbsensiSiswa);
-router.get('/rekap-siswa/tahunan', detailAbsensi.getRekapAbsensiSiswaYearly);
+router.get('/rekap-siswa/yearly', detailAbsensi.getRekapAbsensiSiswaYearly);
+router.get('/rekap-siswa/monthly', detailAbsensi.getRekapAbsensiSiswaMonthly)
 router.get('/rekap-siswa/weakly',detailAbsensi.getRekapAbsensiSiswaWeakly)
 
 // Rekap Kelas

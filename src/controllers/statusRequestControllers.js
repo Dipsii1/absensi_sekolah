@@ -20,7 +20,7 @@ const createRequest = async (req, res) => {
         if (!Object.values(StatusAbsensi).includes(status_baru)) {
             return res.status(400).json({
                 success: false,
-                message: "status_baru tidak valid. Gunakan: HADIR, IZIN, SAKIT, atau ALPHA"
+                message: "status_baru tidak valid. Gunakan: Hadir, Izin, Sakit, atau Alpha"
             });
         }
 

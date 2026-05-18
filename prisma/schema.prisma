@@ -20,15 +20,15 @@ enum StatusKelas {
 }
 
 enum StatusAbsensi {
-  HADIR
-  IZIN
-  SAKIT
-  ALPHA
+  Hadir
+  Izin
+  Sakit
+  Alpha
 }
 
 enum StatusKedatangan {
-  TERLAMBAT
-  TEPAT_WAKTU
+  Terlambat
+  Tepat_Waktu
 }
 
 enum Gender {
@@ -37,12 +37,12 @@ enum Gender {
 }
 
 enum Hari {
-  SENIN
-  SELASA
-  RABU
-  KAMIS
-  JUMAT
-  SABTU
+  Senin
+  Selasa
+  Rabu
+  Kamis
+  Jumat
+  Sabtu
 }
 
 model Role {
@@ -352,3 +352,32 @@ model PermintaanStatusAbsensi {
   @@index([expires_at, is_pending])
   @@map("permintaan_status_absensi")
 }
+
+// model FinalAbsensi {
+//   id             Int           @id @default(autoincrement())
+//   siswa_id       String        @db.Uuid
+//   kelas_id       Int
+//   tanggal        DateTime      @db.Date
+//   status_final   StatusAbsensi
+//   total_Hadir    Int           @default(0)
+//   total_Izin     Int           @default(0)
+//   total_Sakit    Int           @default(0)
+//   total_Alpha    Int           @default(0)
+//   total_mapel    Int           @default(0)
+//   is_finalized   Boolean       @default(false)
+//   finalized_at   DateTime?     @db.Timestamptz(6)
+
+//   siswa  Siswa @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
+//   kelas  Kelas @relation(fields: [kelas_id], references: [id], onDelete: Cascade)
+
+//   created_at DateTime  @default(now()) @db.Timestamptz(6)
+//   updated_at DateTime  @updatedAt @db.Timestamptz(6)
+//   deleted_at DateTime? @db.Timestamptz(6)
+
+//   @@unique([siswa_id, tanggal])
+//   @@index([kelas_id, tanggal])
+//   @@index([status_final])
+//   @@index([is_finalized])
+//   @@index([deleted_at])
+//   @@map("final_absensi")
+// }

@@ -9,11 +9,11 @@
 
 */
 -- CreateEnum
-CREATE TYPE "StatusHarian" AS ENUM ('HADIR', 'IZIN', 'SAKIT', 'ALPHA');
+CREATE TYPE "StatusHarian" AS ENUM ('Hadir', 'Izin', 'Sakit', 'Alpha');
 
 -- AlterEnum
 BEGIN;
-CREATE TYPE "StatusKedatangan_new" AS ENUM ('TERLAMBAT', 'TEPAT_WAKTU');
+CREATE TYPE "StatusKedatangan_new" AS ENUM ('Terlambat', 'Tepat_Waktu');
 ALTER TABLE "absensi_siswa" ALTER COLUMN "status_tapin" TYPE "StatusKedatangan_new" USING ("status_tapin"::text::"StatusKedatangan_new");
 ALTER TYPE "StatusKedatangan" RENAME TO "StatusKedatangan_old";
 ALTER TYPE "StatusKedatangan_new" RENAME TO "StatusKedatangan";

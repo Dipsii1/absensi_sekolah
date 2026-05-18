@@ -36,17 +36,17 @@ const getActiveJadwalGuru = async (guru_id) => {
 
 const hitungStatistik = (detailArr) => {
     const total = detailArr.length;
-    const hadir = detailArr.filter((d) => d.status === "HADIR").length;
-    const izin = detailArr.filter((d) => d.status === "IZIN").length;
-    const sakit = detailArr.filter((d) => d.status === "SAKIT").length;
-    const alpha = detailArr.filter((d) => d.status === "ALPHA").length;
+    const Hadir = detailArr.filter((d) => d.status === "Hadir").length;
+    const Izin = detailArr.filter((d) => d.status === "Izin").length;
+    const Sakit = detailArr.filter((d) => d.status === "Sakit").length;
+    const Alpha = detailArr.filter((d) => d.status === "Alpha").length;
     return {
         total_pertemuan: total,
-        hadir,
-        izin,
-        sakit,
-        alpha,
-        persentase_kehadiran: total > 0 ? ((hadir / total) * 100).toFixed(2) : "0.00"
+        Hadir,
+        Izin,
+        Sakit,
+        Alpha,
+        persentase_keHadiran: total > 0 ? ((Hadir / total) * 100).toFixed(2) : "0.00"
     };
 };
 
@@ -121,7 +121,7 @@ const absensiByGuru = async (req, res) => {
                 results.push({
                     siswa_id: siswa.id,
                     nama: siswa.nama,
-                    status: "ALPHA",
+                    status: "Alpha",
                     message: "Belum tap in"
                 });
                 continue;
@@ -139,7 +139,7 @@ const absensiByGuru = async (req, res) => {
                 continue;
             }
 
-            const statusAbsensi = absensi.tap_in ? "HADIR" : "ALPHA";
+            const statusAbsensi = absensi.tap_in ? "Hadir" : "Alpha";
             toCreate.push({
                 absensi_id: absensi.id,
                 jadwal_id: jadwal.id,
@@ -199,7 +199,7 @@ const updateStatusAbsensiManual = async (req, res) => {
         if (!Object.values(StatusAbsensi).includes(status)) {
             return res.status(400).json({
                 success: false,
-                message: "Status tidak valid. Gunakan: HADIR, IZIN, SAKIT, atau ALPHA"
+                message: "Status tidak valid. Gunakan: Hadir, Izin, Sakit, atau Alpha"
             });
         }
 
@@ -348,7 +348,7 @@ const getRekapAbsensiSiswa = async (req, res) => {
 
         const groupByMapel = detailAbsensi.reduce((acc, detail) => {
             const mapelName = detail.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
-            if (!acc[mapelName]) acc[mapelName] = { total: 0, hadir: 0, izin: 0, sakit: 0, alpha: 0 };
+            if (!acc[mapelName]) acc[mapelName] = { total: 0, Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
             acc[mapelName].total++;
             acc[mapelName][detail.status.toLowerCase()]++;
             return acc;
@@ -470,10 +470,10 @@ const getRekapAbsensiKelas = async (req, res) => {
                 siswa,
                 absensi,
                 statistik: {
-                    hadir: absensi.filter((a) => a.status === "HADIR").length,
-                    izin: absensi.filter((a) => a.status === "IZIN").length,
-                    sakit: absensi.filter((a) => a.status === "SAKIT").length,
-                    alpha: absensi.filter((a) => a.status === "ALPHA").length,
+                    Hadir: absensi.filter((a) => a.status === "Hadir").length,
+                    Izin: absensi.filter((a) => a.status === "Izin").length,
+                    Sakit: absensi.filter((a) => a.status === "Sakit").length,
+                    Alpha: absensi.filter((a) => a.status === "Alpha").length,
                     belum_absen: absensi.filter((a) => a.status === "BELUM_ABSEN").length
                 }
             };
@@ -601,7 +601,7 @@ const getRekapAbsensiSiswaWeakly = async (req, res) => {
         const stats = hitungStatistik(detailAbsensi);
 
         // Statistik per hari (Senin–Minggu)
-        const HARI_URUTAN = ["SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU", "MINGGU"];
+        const HARI_URUTAN = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "MINGGU"];
 
         const statistikPerHari = HARI_URUTAN.map((hari) => {
             const detailHari = detailAbsensi.filter((d) => {
@@ -629,7 +629,7 @@ const getRekapAbsensiSiswaWeakly = async (req, res) => {
         const groupByMapel = detailAbsensi.reduce((acc, detail) => {
             const mapelName = detail.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
             if (!acc[mapelName]) {
-                acc[mapelName] = { total: 0, hadir: 0, izin: 0, sakit: 0, alpha: 0 };
+                acc[mapelName] = { total: 0, Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
             }
             acc[mapelName].total++;
             acc[mapelName][detail.status.toLowerCase()]++;
@@ -639,8 +639,8 @@ const getRekapAbsensiSiswaWeakly = async (req, res) => {
         const statistikPerMapel = Object.entries(groupByMapel).map(([nama_mapel, stat]) => ({
             nama_mapel,
             ...stat,
-            persentase_kehadiran: stat.total > 0
-                ? ((stat.hadir / stat.total) * 100).toFixed(2)
+            persentase_keHadiran: stat.total > 0
+                ? ((stat.Hadir / stat.total) * 100).toFixed(2)
                 : "0.00"
         }));
 
@@ -662,6 +662,153 @@ const getRekapAbsensiSiswaWeakly = async (req, res) => {
 
     } catch (error) {
         console.error("Error in getRekapAbsensiSiswaWeakly:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
+
+
+// get rekap absensi siswa bulanan
+
+const getRekapAbsensiSiswaMonthly = async (req, res) => {
+    try {
+        const { siswa_id, bulan, tahun, mapel_id } = req.query;
+
+        if (!siswa_id || !bulan || !tahun) {
+            return res.status(400).json({
+                success: false,
+                message: "siswa_id, bulan, dan tahun diperlukan"
+            });
+        }
+
+        const bulanInt = parseInt(bulan);   // 1–12
+        const tahunInt = parseInt(tahun);
+
+        // Hitung tanggal mulai dan akhir bulan (UTC)
+        const tanggalMulai = new Date(Date.UTC(tahunInt, bulanInt - 1, 1));
+        const tanggalAkhir = new Date(Date.UTC(tahunInt, bulanInt, 0)); // hari terakhir bulan
+
+        const whereClause = {
+            deleted_at: null,
+            absensi: {
+                siswa_id,
+                deleted_at: null,
+                tanggal: {
+                    gte: tanggalMulai,
+                    lte: tanggalAkhir
+                }
+            },
+            ...(mapel_id
+                ? { jadwal: { mapel_id: parseInt(mapel_id), deleted_at: null } }
+                : { jadwal: { deleted_at: null } })
+        };
+
+        const detailAbsensi = await prisma.detailAbsensiSiswa.findMany({
+            where: whereClause,
+            include: {
+                absensi: {
+                    include: {
+                        siswa: {
+                            select: {
+                                id: true,
+                                nama: true,
+                                kelas: { include: { tahun: true } }
+                            }
+                        }
+                    }
+                },
+                jadwal: { include: { mata_pelajaran: true } },
+                guru: { select: { nama: true } }
+            },
+            orderBy: { absensi: { tanggal: "asc" } }
+        });
+
+        if (detailAbsensi.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Data absensi tidak ditemukan untuk bulan tersebut"
+            });
+        }
+
+        const stats = hitungStatistik(detailAbsensi);
+
+        // Statistik per minggu dalam bulan
+        const statistikPerMinggu = [];
+        let mingguKe = 1;
+        let current = new Date(tanggalMulai);
+
+        while (current <= tanggalAkhir) {
+            // Ambil Senin awal minggu ini
+            const endOfWeek = new Date(current);
+            endOfWeek.setDate(endOfWeek.getDate() + (6 - endOfWeek.getDay()));
+            const akhirMinggu = endOfWeek > tanggalAkhir ? tanggalAkhir : endOfWeek;
+
+            const detailMinggu = detailAbsensi.filter((d) => {
+                const tgl = new Date(d.absensi.tanggal);
+                return tgl >= current && tgl <= akhirMinggu;
+            });
+
+            statistikPerMinggu.push({
+                minggu_ke: mingguKe,
+                tanggal_mulai: formatDate(current),
+                tanggal_akhir: formatDate(akhirMinggu),
+                ...hitungStatistik(detailMinggu)
+            });
+
+            current = new Date(akhirMinggu);
+            current.setDate(current.getDate() + 1);
+            mingguKe++;
+        }
+
+        // Statistik per mapel
+        const groupByMapel = detailAbsensi.reduce((acc, detail) => {
+            const nama = detail.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
+            if (!acc[nama]) acc[nama] = { total: 0, Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
+            acc[nama].total++;
+            acc[nama][detail.status.toLowerCase()]++;
+            return acc;
+        }, {});
+
+        return res.status(200).json({
+            success: true,
+            message: `Berhasil mendapatkan rekap absensi bulan ${NAMA_BULAN[bulanInt - 1]} ${tahunInt}`,
+            data: {
+                siswa: detailAbsensi[0].absensi.siswa,
+                periode: {
+                    bulan: bulanInt,
+                    nama_bulan: NAMA_BULAN[bulanInt - 1],
+                    tahun: tahunInt,
+                    tanggal_mulai: formatDate(tanggalMulai),
+                    tanggal_akhir: formatDate(tanggalAkhir)
+                },
+                statistik_keseluruhan: stats,
+                statistik_per_minggu: statistikPerMinggu,
+                statistik_per_mapel: Object.entries(groupByMapel).map(([nama_mapel, stat]) => ({
+                    nama_mapel,
+                    ...stat,
+                    persentase_keHadiran: stat.total > 0
+                        ? ((stat.Hadir / stat.total) * 100).toFixed(2)
+                        : "0.00"
+                })),
+                riwayat_absensi: detailAbsensi.map((d) => ({
+                    id: d.id,
+                    tanggal: formatDate(d.absensi.tanggal),
+                    mata_pelajaran: d.jadwal?.mata_pelajaran?.nama_mapel ?? "-",
+                    status: d.status,
+                    jam_absen: formatDateTime(d.jam_absen),
+                    keterangan: d.keterangan,
+                    guru: d.guru?.nama ?? "-",
+                    tap_in: formatTime(d.absensi.tap_in),
+                    status_tapin: d.absensi.status_tapin
+                }))
+            }
+        });
+
+    } catch (error) {
+        console.error("Error in getRekapAbsensiSiswaBulanan:", error);
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
@@ -737,7 +884,7 @@ const getRekapAbsensiSiswaYearly = async (req, res) => {
         const perBulan = Array.from({ length: 12 }, (_, i) => ({
             bulan: i + 1,
             nama_bulan: NAMA_BULAN[i],
-            total_hadir_tap: 0,
+            total_Hadir_tap: 0,
             ...hitungStatistik(
                 semuaDetail.filter((d) => {
                     const a = absensiById.get(d.absensi_id);
@@ -748,13 +895,13 @@ const getRekapAbsensiSiswaYearly = async (req, res) => {
 
         absensiList.forEach((a) => {
             const idx = new Date(a.tanggal).getUTCMonth();
-            if (a.tap_in) perBulan[idx].total_hadir_tap++;
+            if (a.tap_in) perBulan[idx].total_Hadir_tap++;
         });
 
         const mapelMap = {};
         semuaDetail.forEach((d) => {
             const nama = d.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
-            if (!mapelMap[nama]) mapelMap[nama] = { total: 0, hadir: 0, izin: 0, sakit: 0, alpha: 0 };
+            if (!mapelMap[nama]) mapelMap[nama] = { total: 0, Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
             mapelMap[nama].total++;
             mapelMap[nama][d.status.toLowerCase()]++;
         });
@@ -762,7 +909,7 @@ const getRekapAbsensiSiswaYearly = async (req, res) => {
         const perMapel = Object.entries(mapelMap).map(([nama_mapel, stat]) => ({
             nama_mapel,
             ...stat,
-            persentase_kehadiran: stat.total > 0 ? ((stat.hadir / stat.total) * 100).toFixed(2) : "0.00"
+            persentase_keHadiran: stat.total > 0 ? ((stat.Hadir / stat.total) * 100).toFixed(2) : "0.00"
         }));
 
         const sem1 = semuaDetail.filter((d) => {
@@ -908,7 +1055,7 @@ const getRekapAbsensiByJadwal = async (req, res) => {
                 tap_in: absensi ? formatTime(absensi.tap_in) : null,
                 tap_out: absensi ? formatTime(absensi.tap_out) : null,
                 status_tapin: absensi?.status_tapin ?? null,
-                status_mapel: detail?.status ?? "ALPHA",
+                status_mapel: detail?.status ?? "Alpha",
                 jam_absen: detail ? formatDateTime(detail.jam_absen) : null,
                 keterangan: detail?.keterangan ?? null
             };
@@ -916,12 +1063,12 @@ const getRekapAbsensiByJadwal = async (req, res) => {
 
         const summary = {
             total_siswa: rekapSiswa.length,
-            hadir: rekapSiswa.filter((s) => s.status_mapel === "HADIR").length,
-            alpha: rekapSiswa.filter((s) => s.status_mapel === "ALPHA").length,
-            izin: rekapSiswa.filter((s) => s.status_mapel === "IZIN").length,
-            sakit: rekapSiswa.filter((s) => s.status_mapel === "SAKIT").length,
-            tepat_waktu: rekapSiswa.filter((s) => s.status_tapin === "TEPAT_WAKTU").length,
-            terlambat: rekapSiswa.filter((s) => s.status_tapin === "TERLAMBAT").length
+            Hadir: rekapSiswa.filter((s) => s.status_mapel === "Hadir").length,
+            Alpha: rekapSiswa.filter((s) => s.status_mapel === "Alpha").length,
+            Izin: rekapSiswa.filter((s) => s.status_mapel === "Izin").length,
+            Sakit: rekapSiswa.filter((s) => s.status_mapel === "Sakit").length,
+            Tepat_Waktu: rekapSiswa.filter((s) => s.status_tapin === "Tepat_Waktu").length,
+            Terlambat: rekapSiswa.filter((s) => s.status_tapin === "Terlambat").length
         };
 
         return res.status(200).json({
@@ -1035,7 +1182,7 @@ const GetRekapAbsensiKelasTahunan = async (req, res) => {
             const mapelMap = {};
             detailSiswa.forEach((d) => {
                 const nama = d.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
-                if (!mapelMap[nama]) mapelMap[nama] = { total: 0, hadir: 0, izin: 0, sakit: 0, alpha: 0 };
+                if (!mapelMap[nama]) mapelMap[nama] = { total: 0, Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
                 mapelMap[nama].total++;
                 mapelMap[nama][d.status.toLowerCase()]++;
             });
@@ -1047,7 +1194,7 @@ const GetRekapAbsensiKelasTahunan = async (req, res) => {
                 per_mapel: Object.entries(mapelMap).map(([nama_mapel, stat]) => ({
                     nama_mapel,
                     ...stat,
-                    persentase_kehadiran: stat.total > 0 ? ((stat.hadir / stat.total) * 100).toFixed(2) : "0.00"
+                    persentase_keHadiran: stat.total > 0 ? ((stat.Hadir / stat.total) * 100).toFixed(2) : "0.00"
                 }))
             };
         });
@@ -1174,7 +1321,7 @@ const GetRekapAbsensiKelasSemester = async (req, res) => {
             const mapelMap = {};
             detailSiswa.forEach((d) => {
                 const nama = d.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
-                if (!mapelMap[nama]) mapelMap[nama] = { total: 0, hadir: 0, izin: 0, sakit: 0, alpha: 0 };
+                if (!mapelMap[nama]) mapelMap[nama] = { total: 0, Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
                 mapelMap[nama].total++;
                 mapelMap[nama][d.status.toLowerCase()]++;
             });
@@ -1185,7 +1332,7 @@ const GetRekapAbsensiKelasSemester = async (req, res) => {
                 per_mapel: Object.entries(mapelMap).map(([nama_mapel, stat]) => ({
                     nama_mapel,
                     ...stat,
-                    persentase_kehadiran: stat.total > 0 ? ((stat.hadir / stat.total) * 100).toFixed(2) : "0.00"
+                    persentase_keHadiran: stat.total > 0 ? ((stat.Hadir / stat.total) * 100).toFixed(2) : "0.00"
                 }))
             };
         });
@@ -1307,9 +1454,9 @@ const pratinjauWalas = async (req, res) => {
 
             const detailWalas = absensi?.detail?.[0] ?? null;
 
-            let status_rekomendasi = "ALPHA";
+            let status_rekomendasi = "Alpha";
             if (detailWalas) status_rekomendasi = detailWalas.status;
-            else if (sudah_tap) status_rekomendasi = "HADIR";
+            else if (sudah_tap) status_rekomendasi = "Hadir";
 
             return {
                 siswa_id: siswa.id,
@@ -1379,7 +1526,7 @@ const absensiManualWalas = async (req, res) => {
         if (statusTidakValid) {
             return res.status(400).json({
                 success: false,
-                message: `Status tidak valid untuk siswa_id ${statusTidakValid.siswa_id}. Gunakan: HADIR, IZIN, SAKIT, atau ALPHA`
+                message: `Status tidak valid untuk siswa_id ${statusTidakValid.siswa_id}. Gunakan: Hadir, Izin, Sakit, atau Alpha`
             });
         }
 
@@ -1582,7 +1729,7 @@ const getRekapAbsensiSemuaKelas = async (req, res) => {
     });
 
     // Bangun statistik global dari groupBy
-    const global = { hadir: 0, izin: 0, sakit: 0, alpha: 0, total: 0 };
+    const global = { Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0, total: 0 };
     grouped.forEach(({ status, _count }) => {
       const key = status.toLowerCase();
       global[key] = _count.status;
@@ -1601,8 +1748,8 @@ const getRekapAbsensiSemuaKelas = async (req, res) => {
         total_siswa: semuaKelas.reduce((s, k) => s + k._count.siswa, 0),
         statistik_global: {
           ...global,
-          persentase_kehadiran: global.total > 0
-            ? ((global.hadir / global.total) * 100).toFixed(2)
+          persentase_keHadiran: global.total > 0
+            ? ((global.Hadir / global.total) * 100).toFixed(2)
             : "0.00"
         }
       }
@@ -1679,6 +1826,7 @@ module.exports = {
     getRekapAbsensiSiswa,
     getRekapAbsensiKelas,
     getRekapAbsensiSiswaYearly,
+    getRekapAbsensiSiswaMonthly,
     getRekapAbsensiSiswaWeakly,
     getRekapAbsensiByJadwal,
     GetRekapAbsensiKelasTahunan,

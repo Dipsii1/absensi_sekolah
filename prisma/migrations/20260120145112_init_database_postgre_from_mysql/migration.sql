@@ -1,8 +1,8 @@
 -- CreateEnum
-CREATE TYPE "StatusAbsensi" AS ENUM ('HADIR', 'IZIN', 'SAKIT', 'ALPHA');
+CREATE TYPE "StatusAbsensi" AS ENUM ('Hadir', 'Izin', 'Sakit', 'Alpha');
 
 -- CreateEnum
-CREATE TYPE "StatusKedatangan" AS ENUM ('TELAMBAT', 'TEPAT_WAKTU');
+CREATE TYPE "StatusKedatangan" AS ENUM ('TELAMBAT', 'Tepat_Waktu');
 
 -- CreateEnum
 CREATE TYPE "Gender" AS ENUM ('L', 'P');
