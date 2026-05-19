@@ -27,7 +27,8 @@ const getAllJadwal = async (req, res) => {
 
         // Filter by hari if provided
         if (req.query.hari) {
-            whereCondition.hari = req.query.hari.toUpperCase();
+            const hariInput = req.query.hari.toLowerCase();
+            whereCondition.hari = hariInput.charAt(0).toUpperCase() + hariInput.slice(1);
         }
 
         const [data, total] = await Promise.all([
@@ -220,7 +221,7 @@ const createJadwal = async (req, res) => {
         const conflictKelas = await prisma.jadwal.findFirst({
             where: {
                 kelas_id: parseInt(kelas_id),
-                hari: hari.toUpperCase(),
+                hari: hari.charAt(0).toUpperCase() + hari.slice(1).toLowerCase(),
                 deleted_at: null,
                 OR: [
                     // Case 1: Jadwal baru dimulai saat jadwal existing berlangsung
@@ -706,9 +707,10 @@ const importJadwal = async (req, res) => {
 
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
-            const rowNum = i + 2; 
+            const rowNum = i + 2;
 
-            const hari = String(row["HARI"] || "").trim().toUpperCase();
+            const hariRaw = String(row["HARI"] || "").trim().toLowerCase();
+            const hari = hariRaw.charAt(0).toUpperCase() + hariRaw.slice(1); 
             const kelasStr = String(row["KELAS"] || "").trim();
             const jurusan = String(row["JURUSAN"] || "").trim();
             const namaMapel = String(row["NAMA_MAPEL"] || "").trim();

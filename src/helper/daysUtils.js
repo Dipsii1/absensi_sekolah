@@ -1,8 +1,10 @@
-const VALID_HARI = ['MINGGU', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const VALID_HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
 const validateHari = (hari) => {
     if (!hari) return false;
-    return VALID_HARI.includes(hari.toUpperCase());
+    // Normalisasi ke Title Case sebelum cek
+    const normalized = hari.charAt(0).toUpperCase() + hari.slice(1).toLowerCase();
+    return VALID_HARI.includes(normalized);
 };
 
 const getHariFromDate = (date) => {
