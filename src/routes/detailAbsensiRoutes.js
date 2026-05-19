@@ -3,7 +3,6 @@ const router = express.Router();
 const detailAbsensi = require("../controllers/detailAbsensiControllers.js");
 const { verifyToken, checkRole } = require("../middleware/auth");
 
-router.use(verifyToken);
 
 // rekap absensi (semua kelas)
 router.get('/rekap-absensi', detailAbsensi.getRekapAbsensiSemuaKelas);
@@ -25,7 +24,8 @@ router.get('/rekap-siswa/weakly',detailAbsensi.getRekapAbsensiSiswaWeakly)
 
 // Rekap Kelas
 router.get('/rekap-kelas', detailAbsensi.getRekapAbsensiKelas);
-router.get('/rekap-kelas/tahunan', detailAbsensi.GetRekapAbsensiKelasTahunan);
+router.get('/rekap-kelas/yearly', detailAbsensi.GetRekapAbsensiKelasTahunan);
+router.get('/rekap-kelas/monthly', detailAbsensi.GetRekapAbsensiKelasMonthly);
 router.get('/rekap-kelas/semester', detailAbsensi.GetRekapAbsensiKelasSemester);
 
 // Rekap Jadwal

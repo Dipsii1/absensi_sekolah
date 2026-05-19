@@ -1228,6 +1228,207 @@ const GetRekapAbsensiKelasTahunan = async (req, res) => {
     }
 };
 
+
+// Get rekap absensi kelas per bulan
+const GetRekapAbsensiKelasMonthly = async (req, res) => {
+    try {
+        const { kelas_id, bulan, tahun } = req.query;
+
+        if (!kelas_id || !bulan || !tahun) {
+            return res.status(400).json({
+                success: false,
+                message: "kelas_id, bulan, dan tahun wajib diisi"
+            });
+        }
+
+        const bulanInt = parseInt(bulan);   // 1–12
+        const tahunInt = parseInt(tahun);
+
+        if (bulanInt < 1 || bulanInt > 12) {
+            return res.status(400).json({
+                success: false,
+                message: "Bulan tidak valid. Gunakan angka 1–12"
+            });
+        }
+
+        const tanggalMulai = new Date(Date.UTC(tahunInt, bulanInt - 1, 1));
+        const tanggalAkhir = new Date(Date.UTC(tahunInt, bulanInt, 0)); // hari terakhir bulan
+
+        const kelas = await prisma.kelas.findFirst({
+            where: {
+                id: parseInt(kelas_id),
+                deleted_at: null
+            },
+            include: {
+                tahun: true,
+                siswa: {
+                    where: { deleted_at: null },
+                    select: { id: true, nama: true }
+                }
+            }
+        });
+
+        if (!kelas) {
+            return res.status(404).json({
+                success: false,
+                message: "Kelas tidak ditemukan"
+            });
+        }
+
+        const detailAbsensi = await prisma.detailAbsensiSiswa.findMany({
+            where: {
+                deleted_at: null,
+                absensi: {
+                    deleted_at: null,
+                    tanggal: {
+                        gte: tanggalMulai,
+                        lte: tanggalAkhir
+                    },
+                    siswa: { kelas_id: parseInt(kelas_id) }
+                }
+            },
+            include: {
+                absensi: {
+                    include: {
+                        siswa: {
+                            select: { id: true, nama: true }
+                        }
+                    }
+                },
+                jadwal: {
+                    include: { mata_pelajaran: true }
+                },
+                guru: {
+                    select: { nama: true }
+                }
+            },
+            orderBy: {
+                absensi: { tanggal: "asc" }
+            }
+        });
+
+        if (detailAbsensi.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: `Tidak ada data absensi untuk kelas dan bulan tersebut`
+            });
+        }
+
+        // Statistik per minggu dalam bulan
+        const statistikPerMinggu = [];
+        let mingguKe = 1;
+        let current = new Date(tanggalMulai);
+
+        while (current <= tanggalAkhir) {
+            const endOfWeek = new Date(current);
+            endOfWeek.setDate(endOfWeek.getDate() + (6 - endOfWeek.getDay()));
+            const akhirMinggu = endOfWeek > tanggalAkhir ? tanggalAkhir : endOfWeek;
+
+            const detailMinggu = detailAbsensi.filter((d) => {
+                const tgl = new Date(d.absensi.tanggal);
+                return tgl >= current && tgl <= akhirMinggu;
+            });
+
+            statistikPerMinggu.push({
+                minggu_ke: mingguKe,
+                tanggal_mulai: formatDate(current),
+                tanggal_akhir: formatDate(akhirMinggu),
+                ...hitungStatistik(detailMinggu)
+            });
+
+            current = new Date(akhirMinggu);
+            current.setDate(current.getDate() + 1);
+            mingguKe++;
+        }
+
+        // Statistik per mapel (semua kelas)
+        const mapelMapKelas = {};
+        detailAbsensi.forEach((d) => {
+            const nama = d.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
+            if (!mapelMapKelas[nama]) {
+                mapelMapKelas[nama] = { total: 0, Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
+            }
+            mapelMapKelas[nama].total++;
+            mapelMapKelas[nama][d.status.toLowerCase()]++;
+        });
+
+        // Statistik per siswa
+        const statistikPerSiswa = kelas.siswa.map((siswa) => {
+            const detailSiswa = detailAbsensi.filter((d) => d.absensi.siswa_id === siswa.id);
+
+            // Statistik per mapel untuk siswa ini
+            const mapelMap = {};
+            detailSiswa.forEach((d) => {
+                const nama = d.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
+                if (!mapelMap[nama]) {
+                    mapelMap[nama] = { total: 0, Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
+                }
+                mapelMap[nama].total++;
+                mapelMap[nama][d.status.toLowerCase()]++;
+            });
+
+            return {
+                siswa,
+                statistik: hitungStatistik(detailSiswa),
+                per_mapel: Object.entries(mapelMap).map(([nama_mapel, stat]) => ({
+                    nama_mapel,
+                    ...stat,
+                    persentase_keHadiran: stat.total > 0
+                        ? ((stat.Hadir / stat.total) * 100).toFixed(2)
+                        : "0.00"
+                })),
+                riwayat_absensi: detailSiswa.map((d) => ({
+                    id: d.id,
+                    tanggal: formatDate(d.absensi.tanggal),
+                    mata_pelajaran: d.jadwal?.mata_pelajaran?.nama_mapel ?? "-",
+                    status: d.status,
+                    jam_absen: formatDateTime(d.jam_absen),
+                    keterangan: d.keterangan,
+                    guru: d.guru?.nama ?? "-",
+                    tap_in: formatTime(d.absensi.tap_in),
+                    status_tapin: d.absensi.status_tapin
+                }))
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: `Berhasil mengambil rekap absensi kelas bulan ${NAMA_BULAN[bulanInt - 1]} ${tahunInt}`,
+            data: {
+                kelas: {
+                    id: kelas.id,
+                    nama: `${kelas.kelas} ${kelas.jurusan}`,
+                    tahun_ajaran: kelas.tahun.tahun_ajaran
+                },
+                periode: {
+                    bulan: bulanInt,
+                    nama_bulan: NAMA_BULAN[bulanInt - 1],
+                    tahun: tahunInt,
+                    tanggal_mulai: formatDate(tanggalMulai),
+                    tanggal_akhir: formatDate(tanggalAkhir)
+                },
+                statistik_kelas: hitungStatistik(detailAbsensi),
+                statistik_per_minggu: statistikPerMinggu,
+                statistik_per_mapel: Object.entries(mapelMapKelas).map(([nama_mapel, stat]) => ({
+                    nama_mapel,
+                    ...stat,
+                    persentase_keHadiran: stat.total > 0
+                        ? ((stat.Hadir / stat.total) * 100).toFixed(2)
+                        : "0.00"
+                })),
+                statistik_per_siswa: statistikPerSiswa
+            }
+        });
+
+    } catch (error) {
+        console.error("Error in GetRekapAbsensiKelasMonthly:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server"
+        });
+    }
+};
+
 // Get rekap absensi kelas per semester
 const GetRekapAbsensiKelasSemester = async (req, res) => {
     try {
@@ -1831,6 +2032,7 @@ module.exports = {
     getRekapAbsensiByJadwal,
     GetRekapAbsensiKelasTahunan,
     GetRekapAbsensiKelasSemester,
+    GetRekapAbsensiKelasMonthly,
     pratinjauWalas,
     absensiManualWalas,
     getRekapAbsensiSemuaKelas,
