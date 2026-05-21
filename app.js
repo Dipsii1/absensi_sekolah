@@ -22,8 +22,9 @@ var absensiSiswaRoutes = require('./src/routes/absensiSiswaRoutes');
 var detailAbsensi = require('./src/routes/detailAbsensiRoutes')
 var usersRoutes = require('./src/routes/usersRoutes');
 var authRoutes = require('./src/routes/authRoutes');
-var roleRoutes = require('./src/routes/roleRoutes')
-var statusRequestRoutes = require('./src/routes/statusRequestRoutes')
+var roleRoutes = require('./src/routes/roleRoutes');
+var statusRequestRoutes = require('./src/routes/statusRequestRoutes');
+var finalAbsensi = require ('./src/routes/finalAbsensiRoutes')
 
 
 // cron job
@@ -62,8 +63,9 @@ app.use('/api/v1/absensi-siswa', absensiSiswaRoutes);
 app.use('/api/v1/detail-absensi', detailAbsensi)
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/role', roleRoutes)
-app.use('/api/v1/status-request', statusRequestRoutes)
+app.use('/api/v1/role', roleRoutes);
+app.use('/api/v1/status-request', statusRequestRoutes);
+app.use('/api/v1/final-absensi', finalAbsensi)
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

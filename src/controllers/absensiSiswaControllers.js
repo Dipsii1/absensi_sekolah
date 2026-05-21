@@ -43,6 +43,14 @@ const tapIn = async (req, res) => {
                 message: "Siswa tidak memiliki kelas"
             });
         }
+        
+         if (rfid.siswa.status_siswa !== "Active") {
+            return res.status(403).json({
+                success: false,
+                message: `Siswa ${rfid.siswa.nama} tidak dapat melakukan tap in karena berstatus ${rfid.siswa.status_siswa}`
+            });
+        }
+
 
         const todayStr = getTodayStrWIB();
         const todayDate = toDateOnly(todayStr);

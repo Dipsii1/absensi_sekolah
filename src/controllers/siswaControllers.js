@@ -170,7 +170,7 @@ const createSiswa = async (req, res) => {
             nomor_telepon,
             nama_kelas,
             jurusan,
-            orangtua 
+            orangtua
         } = req.body;
 
         // Validasi input wajib siswa
@@ -298,6 +298,7 @@ const createSiswa = async (req, res) => {
 };
 
 // update data siswa
+// update data siswa
 const updateSiswa = async (req, res) => {
     try {
         const { id } = req.params;
@@ -310,14 +311,24 @@ const updateSiswa = async (req, res) => {
             tanggal_lahir,
             nomor_telepon,
             kelas_id,
-            orangtua_id
+            orangtua_id,
+            status_siswa  
         } = req.body;
 
-        // Validasi input wajib - KELAS_ID WAJIB
+        // Validasi input wajib
         if (!NISN || !NIPD || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
             return res.status(400).json({
                 success: false,
                 message: "NISN, NIPD, nama siswa, alamat, gender, tanggal lahir, nomor telepon, dan kelas wajib diisi"
+            });
+        }
+
+        // Validasi status_siswa jika dikirim
+        const VALID_STATUS = ["Active", "Inactive", "Alumni"];
+        if (status_siswa && !VALID_STATUS.includes(status_siswa)) {
+            return res.status(400).json({
+                success: false,
+                message: "Status siswa tidak valid. Gunakan: Active, Inactive, atau Alumni"
             });
         }
 
@@ -347,10 +358,7 @@ const updateSiswa = async (req, res) => {
 
         // Cek siswa apakah ada
         const existingSiswa = await prisma.siswa.findFirst({
-            where: {
-                id: id,
-                deleted_at: null
-            }
+            where: { id, deleted_at: null }
         });
 
         if (!existingSiswa) {
@@ -362,10 +370,7 @@ const updateSiswa = async (req, res) => {
 
         // Validasi kelas exists
         const kelasExists = await prisma.kelas.findFirst({
-            where: {
-                id: parseInt(kelas_id),
-                deleted_at: null
-            }
+            where: { id: parseInt(kelas_id), deleted_at: null }
         });
 
         if (!kelasExists) {
@@ -378,10 +383,7 @@ const updateSiswa = async (req, res) => {
         // Validasi orangtua exists (jika diisi)
         if (orangtua_id) {
             const orangTuaExists = await prisma.OrangTua.findFirst({
-                where: {
-                    id: parseInt(orangtua_id),
-                    deleted_at: null
-                }
+                where: { id: parseInt(orangtua_id), deleted_at: null }
             });
 
             if (!orangTuaExists) {
@@ -394,13 +396,7 @@ const updateSiswa = async (req, res) => {
 
         // Cek duplikasi NISN (kecuali data sendiri)
         const duplicateNISN = await prisma.siswa.findFirst({
-            where: {
-                NISN,
-                deleted_at: null,
-                NOT: {
-                    id: id
-                }
-            }
+            where: { NISN, deleted_at: null, NOT: { id } }
         });
 
         if (duplicateNISN) {
@@ -412,13 +408,7 @@ const updateSiswa = async (req, res) => {
 
         // Cek duplikasi NIPD (kecuali data sendiri)
         const duplicateNIPD = await prisma.siswa.findFirst({
-            where: {
-                NIPD,
-                deleted_at: null,
-                NOT: {
-                    id: id
-                }
-            }
+            where: { NIPD, deleted_at: null, NOT: { id } }
         });
 
         if (duplicateNIPD) {
@@ -429,7 +419,7 @@ const updateSiswa = async (req, res) => {
         }
 
         // Konversi tanggal lahir
-        let tanggalLahirDate = new Date(tanggal_lahir);
+        const tanggalLahirDate = new Date(tanggal_lahir);
         if (isNaN(tanggalLahirDate.getTime())) {
             return res.status(400).json({
                 success: false,
@@ -437,37 +427,39 @@ const updateSiswa = async (req, res) => {
             });
         }
 
-        // Update data
-        const updatedSiswa = await prisma.siswa.update({
-            where: {
-                id: id
-            },
-            data: {
-                NISN,
-                NIPD,
-                nama,
-                alamat,
-                gender,
-                tanggal_lahir: tanggalLahirDate,
-                nomor_telepon,
-                kelas_id: parseInt(kelas_id),
-                orangtua_id: orangtua_id ? parseInt(orangtua_id) : null,
-                updated_at: new Date()
-            },
-            include: {
-                kelas: {
-                    select: {
-                        kelas: true,
-                        jurusan: true,
-                    }
-                },
-                orang_tua: {
-                    select: {
-                        nama_orangtua: true,
-                        nomor_telepon: true
-                    }
-                }
+        const updatedSiswa = await prisma.$transaction(async (tx) => {
+            // Jika status berubah ke Alumni atau Inactive, nonaktifkan semua RFID
+            const statusBerubahKeNonAktif =
+                status_siswa &&
+                status_siswa !== existingSiswa.status_siswa &&
+                (status_siswa === "Alumni" || status_siswa === "Inactive");
+
+            if (statusBerubahKeNonAktif) {
+                await tx.rFID.updateMany({
+                    where: { siswa_id: id, deleted_at: null },
+                    data: { is_active: false }
+                });
             }
+
+            return tx.siswa.update({
+                where: { id },
+                data: {
+                    NISN,
+                    NIPD,
+                    nama,
+                    alamat,
+                    gender,
+                    tanggal_lahir: tanggalLahirDate,
+                    nomor_telepon,
+                    kelas_id: parseInt(kelas_id),
+                    orangtua_id: orangtua_id ? parseInt(orangtua_id) : null,
+                    ...(status_siswa && { status_siswa })
+                },
+                include: {
+                    kelas: { select: { kelas: true, jurusan: true } },
+                    orang_tua: { select: { nama_orangtua: true, nomor_telepon: true } }
+                }
+            });
         });
 
         return res.status(200).json({
@@ -475,6 +467,7 @@ const updateSiswa = async (req, res) => {
             message: "Berhasil mengupdate data siswa",
             data: updatedSiswa
         });
+
     } catch (error) {
         console.error("Error updating siswa:", error);
         return res.status(500).json({
@@ -484,6 +477,7 @@ const updateSiswa = async (req, res) => {
         });
     }
 };
+
 
 // delete siswa (soft delete)
 const deleteSiswa = async (req, res) => {
@@ -585,8 +579,8 @@ const importSiswa = async (req, res) => {
             });
         }
 
-        const allNISN    = [...new Set(rows.map(r => String(r.NISN).trim()).filter(Boolean))];
-        const allNIPD    = [...new Set(rows.map(r => String(r.NIPD).trim()).filter(Boolean))];
+        const allNISN = [...new Set(rows.map(r => String(r.NISN).trim()).filter(Boolean))];
+        const allNIPD = [...new Set(rows.map(r => String(r.NIPD).trim()).filter(Boolean))];
         const allNIKOrtu = [...new Set(rows.map(r => String(r.NIK_orangtua || "").trim()).filter(Boolean))];
 
         const [existingSiswaNISN, existingSiswaNIPD, existingOrtuList, kelasList] = await Promise.all([
@@ -612,45 +606,45 @@ const importSiswa = async (req, res) => {
 
         const existingNISNSet = new Set(existingSiswaNISN.map(s => s.NISN));
         const existingNIPDSet = new Set(existingSiswaNIPD.map(s => s.NIPD));
-        const ortuMap         = new Map(existingOrtuList.map(o => [o.NIK, o.id]));
-        const kelasMap        = new Map(kelasList.map(k => [`${k.kelas}__${k.jurusan}`, k.id]));
+        const ortuMap = new Map(existingOrtuList.map(o => [o.NIK, o.id]));
+        const kelasMap = new Map(kelasList.map(k => [`${k.kelas}__${k.jurusan}`, k.id]));
 
-        const errors     = [];
-        const toInsert   = [];
+        const errors = [];
+        const toInsert = [];
         const nisnInFile = new Set();
         const nipdInFile = new Set();
         const VALID_GENDER = ["L", "P"];
 
         for (let i = 0; i < rows.length; i++) {
-            const row       = rows[i];
-            const rowNum    = i + 2;
+            const row = rows[i];
+            const rowNum = i + 2;
             const rowErrors = [];
 
-            const NISN          = String(row.NISN).trim();
-            const NIPD          = String(row.NIPD).trim();
-            const nama          = String(row.nama).trim();
-            const alamat        = String(row.alamat).trim();
-            const gender        = String(row.gender).trim();
+            const NISN = String(row.NISN).trim();
+            const NIPD = String(row.NIPD).trim();
+            const nama = String(row.nama).trim();
+            const alamat = String(row.alamat).trim();
+            const gender = String(row.gender).trim();
             const tanggal_lahir = row.tanggal_lahir;
             const nomor_telepon = String(row.nomor_telepon).trim();
-            const nama_kelas    = String(row.nama_kelas).trim();
-            const jurusan       = String(row.jurusan).trim();
+            const nama_kelas = String(row.nama_kelas).trim();
+            const jurusan = String(row.jurusan).trim();
 
-            const NIK_ortu       = row.NIK_orangtua           ? String(row.NIK_orangtua).trim()           : "";
-            const nama_ortu      = row.nama_orangtua           ? String(row.nama_orangtua).trim()          : "";
-            const telp_ortu      = row.nomor_telepon_orangtua  ? String(row.nomor_telepon_orangtua).trim() : "";
-            const pekerjaan_ortu = row.pekerjaan_orangtua      ? String(row.pekerjaan_orangtua).trim()     : "";
-            const alamat_ortu    = row.alamat_orangtua         ? String(row.alamat_orangtua).trim()        : "";
+            const NIK_ortu = row.NIK_orangtua ? String(row.NIK_orangtua).trim() : "";
+            const nama_ortu = row.nama_orangtua ? String(row.nama_orangtua).trim() : "";
+            const telp_ortu = row.nomor_telepon_orangtua ? String(row.nomor_telepon_orangtua).trim() : "";
+            const pekerjaan_ortu = row.pekerjaan_orangtua ? String(row.pekerjaan_orangtua).trim() : "";
+            const alamat_ortu = row.alamat_orangtua ? String(row.alamat_orangtua).trim() : "";
 
-            if (!NISN)          rowErrors.push("NISN kosong");
-            if (!NIPD)          rowErrors.push("NIPD kosong");
-            if (!nama)          rowErrors.push("nama kosong");
-            if (!alamat)        rowErrors.push("alamat kosong");
-            if (!gender)        rowErrors.push("gender kosong");
+            if (!NISN) rowErrors.push("NISN kosong");
+            if (!NIPD) rowErrors.push("NIPD kosong");
+            if (!nama) rowErrors.push("nama kosong");
+            if (!alamat) rowErrors.push("alamat kosong");
+            if (!gender) rowErrors.push("gender kosong");
             if (!tanggal_lahir) rowErrors.push("tanggal_lahir kosong");
             if (!nomor_telepon) rowErrors.push("nomor_telepon kosong");
-            if (!nama_kelas)    rowErrors.push("nama_kelas kosong");
-            if (!jurusan)       rowErrors.push("jurusan kosong");
+            if (!nama_kelas) rowErrors.push("nama_kelas kosong");
+            if (!jurusan) rowErrors.push("jurusan kosong");
 
             if (NISN && !/^\d+$/.test(NISN)) rowErrors.push("NISN harus berupa angka");
             if (NIPD && !/^\d+$/.test(NIPD)) rowErrors.push("NIPD harus berupa angka");
@@ -686,7 +680,7 @@ const importSiswa = async (req, res) => {
                 if (!kelasId) rowErrors.push(`Kelas ${nama_kelas} jurusan ${jurusan} tidak ditemukan`);
             }
 
-            let orangtuaId   = null;
+            let orangtuaId = null;
             let orangtuaBaru = null;
 
             if (NIK_ortu) {
