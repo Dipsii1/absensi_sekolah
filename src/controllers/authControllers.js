@@ -239,115 +239,167 @@ const login = async (req, res) => {
             });
         }
 
-        // Autentikasi ke YSBO API
-        let ysboData;
+        let user = null;
+        let ysboUser = null;
+        let ysboSuccess = false;
+
         try {
             const ysboResponse = await fetch(process.env.YSBO_API_URL, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                },
                 body: JSON.stringify({
                     version: "v1",
                     apps_name: "TB Attendance",
-                    username: username,
+                    username,
                     password,
                 }),
             });
 
-            ysboData = await ysboResponse.json();
+            const ysboData = await ysboResponse.json();
 
-            if (ysboData.status_code !== 200) {
+            if (ysboData.status_code === 200) {
+                ysboSuccess = true;
+                ysboUser = ysboData.data;
+            }
+        } catch (err) {
+            console.error("YSBO API Error:", err.message);
+        }
+
+        if (ysboSuccess) {
+            user = await prisma.user.findFirst({
+                where: {
+                    username: ysboUser.username,
+                    deleted_at: null,
+                },
+                include: {
+                    userRole: {
+                        include: {
+                            role: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                },
+                            },
+                        },
+                    },
+                    guru: {
+                        select: {
+                            id: true,
+                            NIP: true,
+                            nama: true,
+                            nomor_telepon: true,
+                        },
+                    },
+                },
+            });
+
+            if (!user) {
+                const roleCache = await getRoleCache();
+                const defaultRole = roleCache["GURU"];
+
+                const hashedPassword = await bcrypt.hash(password, 10);
+
+                user = await prisma.$transaction(async (tx) => {
+                    const guruBaru = await tx.guru.create({
+                        data: {
+                            NIP: `YSBO-${ysboUser.username}`,
+                            nama: ysboUser.username,
+                            nomor_telepon: "-",
+                            alamat: "-",
+                            tanggal_lahir: new Date("2000-01-01"),
+                        },
+                    });
+
+                    return await tx.user.create({
+                        data: {
+                            username: ysboUser.username,
+                            email: ysboUser.email ?? null,
+                            password: hashedPassword,
+                            guru_id: guruBaru.id,
+                            userRole: {
+                                create: [
+                                    {
+                                        role_id: defaultRole.id,
+                                    },
+                                ],
+                            },
+                        },
+                        include: {
+                            userRole: {
+                                include: {
+                                    role: {
+                                        select: {
+                                            id: true,
+                                            name: true,
+                                        },
+                                    },
+                                },
+                            },
+                            guru: {
+                                select: {
+                                    id: true,
+                                    NIP: true,
+                                    nama: true,
+                                    nomor_telepon: true,
+                                },
+                            },
+                        },
+                    });
+                });
+            }
+        }
+
+
+        // DEV: login pake user di prisma tanpa cek YSBO
+        else {
+            user = await prisma.user.findFirst({
+                where: {
+                    username,
+                    deleted_at: null,
+                },
+                include: {
+                    userRole: {
+                        include: {
+                            role: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                },
+                            },
+                        },
+                    },
+                    guru: {
+                        select: {
+                            id: true,
+                            NIP: true,
+                            nama: true,
+                            nomor_telepon: true,
+                        },
+                    },
+                },
+            });
+
+            if (!user) {
                 return res.status(401).json({
                     success: false,
-                    message: ysboData.message || "Username atau password salah",
+                    message: "Username atau password salah",
                 });
             }
-        } catch (fetchError) {
-            console.error("YSBO API unreachable:", fetchError);
-            return res.status(503).json({
-                success: false,
-                message: "Layanan autentikasi eksternal tidak tersedia",
-            });
-        }
 
-        const ysboUser = ysboData.data;
+            const passwordMatch = await bcrypt.compare(
+                password,
+                user.password
+            );
 
-        // Cari user lokal berdasarkan username dari YSBO
-        let user = await prisma.user.findFirst({
-            where: { username: ysboUser.username, deleted_at: null },
-            include: {
-                userRole: {
-                    include: {
-                        role: { select: { id: true, name: true } },
-                    },
-                },
-                guru: {
-                    select: {
-                        id: true,
-                        NIP: true,
-                        nama: true,
-                        nomor_telepon: true,
-                    },
-                },
-            },
-        });
-
-        // Jika user belum ada, auto-register
-        if (!user) {
-            const roleCache = await getRoleCache();
-            const defaultRole = roleCache["GURU"];
-
-            if (!defaultRole) {
-                return res.status(500).json({
+            if (!passwordMatch) {
+                return res.status(401).json({
                     success: false,
-                    message: "Role default tidak ditemukan di database",
+                    message: "Username atau password salah",
                 });
             }
-
-            const hashedPassword = await bcrypt.hash(password, 10);
-
-            // Buat Guru placeholder dulu, lalu User yang terhubung ke Guru
-            user = await prisma.$transaction(async (tx) => {
-                // Buat record Guru dengan data placeholder
-                const guruBaru = await tx.guru.create({
-                    data: {
-                        NIP: `YSBO-${ysboUser.username}`,        
-                        nama: ysboUser.username,                 
-                        nomor_telepon: "-",                       
-                        alamat: "-",                              
-                        tanggal_lahir: new Date("2000-01-01"),   
-                    },
-                });
-
-                //  Buat User dan langsung hubungkan ke Guru
-                return await tx.user.create({
-                    data: {
-                        username: ysboUser.username,
-                        email: ysboUser.email ?? null,
-                        password: hashedPassword,
-                        guru_id: guruBaru.id,
-                        userRole: {
-                            create: [{ role_id: defaultRole.id }],
-                        },
-                    },
-                    include: {
-                        userRole: {
-                            include: {
-                                role: { select: { id: true, name: true } },
-                            },
-                        },
-                        guru: {
-                            select: {
-                                id: true,
-                                NIP: true,
-                                nama: true,
-                                nomor_telepon: true,
-                            },
-                        },
-                    },
-                });
-            });
         }
-
         const roles = extractRoles(user.userRole);
 
         const accessToken = jwt.sign(
@@ -360,7 +412,9 @@ const login = async (req, res) => {
                 guru_id: user.guru_id,
             },
             process.env.JWT_SECRET,
-            { expiresIn: "24h" }
+            {
+                expiresIn: "24h",
+            }
         );
 
         const { password: _, ...userData } = user;
@@ -369,14 +423,18 @@ const login = async (req, res) => {
             success: true,
             message: "Login berhasil",
             data: {
-                user: { ...userData, roles },
+                user: {
+                    ...userData,
+                    roles,
+                },
                 accessToken,
-                ysboToken: ysboUser.token ?? null,
+                ysboToken: ysboUser?.token ?? null,
+                login_source: ysboSuccess ? "YSBO" : "LOCAL",
             },
         });
-
     } catch (error) {
         console.error("Error in login:", error);
+
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
