@@ -2,8 +2,6 @@ const express = require("express");
 const router = express.Router();
 const rekapControllers = require("../controllers/rekapControllers.js");
 
-
-
 // rekap absensi (semua kelas)
 router.get('/rekap-absensi', rekapControllers.getRekapAbsensiSemuaKelas);
 
