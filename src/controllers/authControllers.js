@@ -244,7 +244,7 @@ const login = async (req, res) => {
         let ysboSuccess = false;
 
         try {
-            const ysboResponse = await fetch(process.env.YSBO_API_URL, {
+            const ysboResponse = await fetch(`${process.env.YSBO_API_BASE_URL}/Auth/signIn-ysbmo`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -263,6 +263,7 @@ const login = async (req, res) => {
                 ysboSuccess = true;
                 ysboUser = ysboData.data;
             }
+            console.log("ysboUser:", JSON.stringify(ysboUser));
         } catch (err) {
             console.error("YSBO API Error:", err.message);
         }
@@ -428,7 +429,7 @@ const login = async (req, res) => {
                     roles,
                 },
                 accessToken,
-                ysboToken: ysboUser?.token ?? null,
+                ysboToken: ysboUser?.token,
                 login_source: ysboSuccess ? "YSBO" : "LOCAL",
             },
         });

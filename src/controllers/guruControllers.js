@@ -1,12 +1,82 @@
 const prisma = require("../config/prisma");
+const axios = require("axios");
 
-// get all
+// generate x api key for ysbo
+const getApiKey = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    return `SARPRAS-STARBHAK${year}${month}`;
+};
+
+// get all guru (sync dari YSBO ke DB lokal)
 const getAllGuru = async (req, res) => {
     try {
+        const ysboToken = req.headers["x-ysbo-token"];
+
+        if (ysboToken) {
+            try {
+                const client = axios.create({
+                    baseURL: process.env.YSBO_API_BASE_URL,
+                    headers: {
+                        "Authorization": `Basic ${ysboToken}`,
+                        "x-api-key": getApiKey(),
+                    },
+                });
+
+                const { data: ysboData } = await client.get("/masterdata/list-staff");
+
+                if (ysboData.status_code === 200 && Array.isArray(ysboData.data)) {
+                    const roleCache = await prisma.role.findFirst({
+                        where: { name: "GURU" },
+                    });
+
+                    await Promise.allSettled(
+                        ysboData.data
+                            .filter((g) => g.id_school === "TB002")
+                            .map(async (guru) => {
+                                // Upsert guru
+                                const upsertedGuru = await prisma.guru.upsert({
+                                    where: { NIP: guru.id },
+                                    update: { nama: guru.text.trim(), deleted_at: null },
+                                    create: {
+                                        NIP: guru.id,
+                                        nama: guru.text.trim(),
+                                        nomor_telepon: "-",
+                                        alamat: "-",
+                                        tanggal_lahir: new Date("2000-01-01"),
+                                    },
+                                });
+
+                                //Cek apakah user sudah ada
+                                const existingUser = await prisma.user.findFirst({
+                                    where: { guru_id: upsertedGuru.id, deleted_at: null },
+                                });
+
+                                if (!existingUser) {
+                                    // buat user baru dengan role GURU
+                                    await prisma.user.create({
+                                        data: {
+                                            username: guru.id,
+                                            password: "-",
+                                            guru_id: upsertedGuru.id,
+                                            userRole: {
+                                                create: [{ role_id: roleCache.id }],
+                                            },
+                                        },
+                                    });
+                                }
+                            })
+                    );
+                }
+            } catch (ysboError) {
+                console.warn("Sync YSBO gagal:", ysboError.message);
+            }
+        }
+
         const guru = await prisma.guru.findMany({
-            where: {
-                deleted_at: null,
-            },
+            where: { deleted_at: null },
+            orderBy: { nama: "asc" },
         });
 
         return res.status(200).json({
@@ -14,11 +84,12 @@ const getAllGuru = async (req, res) => {
             message: "Berhasil mendapatkan data guru",
             data: guru,
         });
+
     } catch (error) {
-        console.error("Error getting guru:", error);
+        console.error("Error getting all guru:", error);
         return res.status(500).json({
             success: false,
-            message: "Terjadi kesalahan pada server",
+            message: "Terjadi kesalahan saat mengambil data guru",
             error: error.message,
         });
     }
@@ -36,7 +107,6 @@ const getGuruById = async (req, res) => {
             });
         }
 
-         
         const guru = await prisma.guru.findFirst({
             where: {
                 id: parseInt(id),
@@ -47,7 +117,6 @@ const getGuruById = async (req, res) => {
                     where: {
                         deleted_at: null,
                     },
-                     
                     orderBy: {
                         jam_mulai: "asc",
                     },
@@ -58,7 +127,6 @@ const getGuruById = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                 
                                 jurusan: true,
                             },
                         },
@@ -94,38 +162,33 @@ const getGuruById = async (req, res) => {
     }
 };
 
-
 const getGuruWalas = async (req, res) => {
     try {
         const guru = await prisma.guru.findMany({
             where: {
                 deleted_at: null,
-
                 user: {
                     userRole: {
                         some: {
                             role: {
                                 name: "WALAS",
-                                deleted_at: null
-                            }
-                        }
-                    }
+                                deleted_at: null,
+                            },
+                        },
+                    },
                 },
-
                 kelas_walas: {
-                    none: {}
-                }
+                    none: {},
+                },
             },
-
             orderBy: {
-                nama: "asc"
+                nama: "asc",
             },
-
             select: {
                 id: true,
                 NIP: true,
                 nama: true,
-            }
+            },
         });
 
         return res.status(200).json({
@@ -133,10 +196,8 @@ const getGuruWalas = async (req, res) => {
             message: "Berhasil mendapatkan data guru walas yang belum mempunyai kelas",
             data: guru,
         });
-
     } catch (error) {
         console.error("Error getting guru walas:", error);
-
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
@@ -157,7 +218,6 @@ const createGuru = async (req, res) => {
             });
         }
 
-        // Konversi tanggal terlebih dahulu sebelum query apapun
         const tanggalLahirDate = new Date(tanggal_lahir.replace(" ", "T"));
 
         if (isNaN(tanggalLahirDate.getTime())) {
@@ -167,14 +227,12 @@ const createGuru = async (req, res) => {
             });
         }
 
-       
         const existingGuru = await prisma.guru.findFirst({
             where: { NIP },
         });
 
         if (existingGuru) {
             if (existingGuru.deleted_at) {
-                // Restore data yang pernah dihapus
                 const restoredGuru = await prisma.guru.update({
                     where: { id: existingGuru.id },
                     data: {
@@ -237,7 +295,6 @@ const updateGuru = async (req, res) => {
             });
         }
 
-        
         const tanggalLahirDate = new Date(tanggal_lahir.replace(" ", "T"));
 
         if (isNaN(tanggalLahirDate.getTime())) {
@@ -247,7 +304,6 @@ const updateGuru = async (req, res) => {
             });
         }
 
-         
         const existingGuru = await prisma.guru.findFirst({
             where: {
                 id: parseInt(id),
@@ -284,7 +340,6 @@ const updateGuru = async (req, res) => {
                 nama,
                 nomor_telepon,
                 alamat,
-                 
                 tanggal_lahir: tanggalLahirDate,
             },
         });
@@ -309,7 +364,6 @@ const deleteGuru = async (req, res) => {
     try {
         const { id } = req.params;
 
-         
         const existingGuru = await prisma.guru.findFirst({
             where: {
                 id: parseInt(id),
@@ -324,7 +378,6 @@ const deleteGuru = async (req, res) => {
             });
         }
 
-         
         const relatedJadwal = await prisma.jadwal.findFirst({
             where: {
                 guru_id: parseInt(id),
@@ -365,5 +418,5 @@ module.exports = {
     createGuru,
     updateGuru,
     deleteGuru,
-    getGuruWalas
+    getGuruWalas,
 };

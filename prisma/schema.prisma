@@ -216,7 +216,7 @@ model DetailAbsensiSiswa {
 
 model Guru {
   id            Int      @id @default(autoincrement())
-  NIP           String   @unique @db.VarChar(20)
+  NIP           String   @unique @db.VarChar(50)
   nama          String   @db.VarChar(255)
   nomor_telepon String   @db.VarChar(15)
   alamat        String   @db.Text
