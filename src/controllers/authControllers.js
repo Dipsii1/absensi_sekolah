@@ -263,7 +263,6 @@ const login = async (req, res) => {
                 ysboSuccess = true;
                 ysboUser = ysboData.data;
             }
-            console.log("ysboUser:", JSON.stringify(ysboUser));
         } catch (err) {
             console.error("YSBO API Error:", err.message);
         }
