@@ -3,6 +3,9 @@ const { formatDateTime, formatTime, validateTimeFormat, validateHari } = require
 const XLSX = require("xlsx");
 
 
+// normalize hari
+const hariNormalized = hari.trim().charAt(0).toUpperCase() + hari.trim().slice(1).toLowerCase();
+
 
 // get all jadwal
 const getAllJadwal = async (req, res) => {
@@ -221,7 +224,7 @@ const createJadwal = async (req, res) => {
         const conflictKelas = await prisma.jadwal.findFirst({
             where: {
                 kelas_id: parseInt(kelas_id),
-                hari: hari.charAt(0).toUpperCase() + hari.slice(1).toLowerCase(),
+                hari: hariNormalized,
                 deleted_at: null,
                 OR: [
                     // Case 1: Jadwal baru dimulai saat jadwal existing berlangsung
@@ -267,7 +270,7 @@ const createJadwal = async (req, res) => {
         const conflictGuru = await prisma.jadwal.findFirst({
             where: {
                 guru_id: parseInt(guru_id),
-                hari: hari.toUpperCase(),
+                hari: hariNormalized,
                 deleted_at: null,
                 OR: [
                     // Case 1: Jadwal baru dimulai saat jadwal existing berlangsung
@@ -312,7 +315,7 @@ const createJadwal = async (req, res) => {
         // Buat jadwal baru
         const newJadwal = await prisma.jadwal.create({
             data: {
-                hari: hari.toUpperCase(),
+                hari: hariNormalized,
                 kelas_id: parseInt(kelas_id),
                 mapel_id: parseInt(mapel_id),
                 guru_id: parseInt(guru_id),
@@ -470,7 +473,7 @@ const updateJadwal = async (req, res) => {
             prisma.jadwal.findFirst({
                 where: {
                     kelas_id: parseInt(kelas_id),
-                    hari: hari.toUpperCase(),
+                    hari: hariNormalized,
                     deleted_at: null,
                     NOT: { id: parseInt(id) },
                     OR: [
@@ -504,7 +507,7 @@ const updateJadwal = async (req, res) => {
             prisma.jadwal.findFirst({
                 where: {
                     guru_id: parseInt(guru_id),
-                    hari: hari.toUpperCase(),
+                    hari: hariNormalized,
                     deleted_at: null,
                     NOT: { id: parseInt(id) },
                     OR: [
@@ -557,7 +560,7 @@ const updateJadwal = async (req, res) => {
                 id: parseInt(id)
             },
             data: {
-                hari: hari.toUpperCase(),
+                hari: hariNormalized,
                 kelas_id: parseInt(kelas_id),
                 mapel_id: parseInt(mapel_id),
                 guru_id: parseInt(guru_id),
