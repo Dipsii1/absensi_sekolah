@@ -14,7 +14,7 @@ router.delete('/:id', checkRole("GURU"), detailAbsensi.deleteDetailAbsensi);
 
 // Walas 
 router.get('/pratinjau-walas', detailAbsensi.pratinjauWalas);
-router.post('/absensi-walas', checkRole("WALAS"), detailAbsensi.absensiManualWalas)
+router.post('/absensi-walas',verifyToken, checkRole("WALAS"), detailAbsensi.absensiManualWalas)
 
 // Rekap Siswa
 // router.get('/rekap-siswa', detailAbsensi.getRekapAbsensiSiswa);

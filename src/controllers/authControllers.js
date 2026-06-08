@@ -423,10 +423,6 @@ const login = async (req, res) => {
             success: true,
             message: "Login berhasil",
             data: {
-                user: {
-                    ...userData,
-                    roles,
-                },
                 accessToken,
                 ysboToken: ysboUser?.token,
                 login_source: ysboSuccess ? "YSBO" : "LOCAL",
