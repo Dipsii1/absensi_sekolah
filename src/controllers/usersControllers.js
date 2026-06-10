@@ -152,7 +152,8 @@ const updateUser = async (req, res) => {
         const { username, email, password, role, guru_id, role_names } = req.body;
 
         // Validasi field
-        if (!username || !role) {
+        const hasRole = role || (Array.isArray(role_names) && role_names.length > 0);
+        if (!username || !hasRole) {
             return res.status(400).json({
                 success: false,
                 message: "Username dan role wajib diisi"
@@ -188,9 +189,16 @@ const updateUser = async (req, res) => {
             .filter(Boolean);
 
         // Jika ada ADMIN, pastikan hanya ADMIN yang dipilih
-        const finalRoleNames = requestedRoleNames.includes("ADMIN")
-            ? ["ADMIN"]
-            : Array.from(new Set(requestedRoleNames));
+        let finalRoleNames;
+        if (requestedRoleNames.includes("ADMIN")) {
+            finalRoleNames = ["ADMIN"];
+        } else {
+            const expanded = new Set(requestedRoleNames);
+            if (expanded.has("WALAS") || expanded.has("KESISWAAN")) {
+                expanded.add("GURU");
+            }
+            finalRoleNames = Array.from(expanded);
+        }
 
         const invalidRoles = finalRoleNames.filter((r) => !roleCache[r]);
         if (invalidRoles.length) {
@@ -229,6 +237,16 @@ const updateUser = async (req, res) => {
                 return res.status(403).json({
                     success: false,
                     message: "User dengan role ADMIN tidak dapat diubah rolenya"
+                });
+            }
+        }
+        
+        // jika user sudah punyar role superadmin, rolenya tidak bisa diubah
+        if (existingRoleNames.includes("SUPER_ADMIN")) {
+            if (!(finalRoleNames.length === 1 && finalRoleNames[0] === "SUPER_ADMIN")) {
+                return res.status(403).json({
+                    success: false,
+                    message: "User dengan role SUPER_ADMIN tidak dapat diubah rolenya"
                 });
             }
         }
