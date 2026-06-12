@@ -196,11 +196,13 @@ const updateUser = async (req, res) => {
             .filter(Boolean);
 
         let finalRoleNames;
-        if (requestedRoleNames.includes("ADMIN")) {
-            finalRoleNames = ["ADMIN"];
+        // SUPER_ADMIN punya akses ke semua role, tapi tidak bisa punya role lain selain SUPER_ADMIN
+        if (requestedRoleNames.includes("SUPER_ADMIN")) {
+            finalRoleNames = ["SUPER_ADMIN"];
         } else {
+            // Jika memilih WALAS atau KESISWAAN, otomatis dapat akses GURU juga
             const expanded = new Set(requestedRoleNames);
-            if (expanded.has("WALAS") || expanded.has("KESISWAAN")) {
+            if (expanded.has("WALAS")) {
                 expanded.add("GURU");
             }
             finalRoleNames = Array.from(expanded);
@@ -238,14 +240,7 @@ const updateUser = async (req, res) => {
             .map((ur) => normalizeRoleName(ur?.role?.name))
             .filter(Boolean);
 
-        if (existingRoleNames.includes("ADMIN")) {
-            if (!(finalRoleNames.length === 1 && finalRoleNames[0] === "ADMIN")) {
-                return res.status(403).json({
-                    success: false,
-                    message: "User dengan role ADMIN tidak dapat diubah rolenya",
-                });
-            }
-        }
+         
 
         if (existingRoleNames.includes("SUPER_ADMIN")) {
             if (!(finalRoleNames.length === 1 && finalRoleNames[0] === "SUPER_ADMIN")) {
