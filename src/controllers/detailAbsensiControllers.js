@@ -252,6 +252,13 @@ const updateStatusAbsensiManual = async (req, res) => {
             }
         });
 
+        if (detailAbsensi.jadwal_id === null) {
+            await prisma.absensiSiswa.update({
+                where: { id: detailAbsensi.absensi_id },
+                data: { status_harian: status }
+            });
+        }
+
         return res.status(200).json({
             success: true,
             message: "Berhasil mengupdate status absensi",
@@ -1862,18 +1869,20 @@ const absensiManualWalas = async (req, res) => {
 
         if (siswaTanpaAbsensi.length > 0) {
             await prisma.$transaction(
-                siswaTanpaAbsensi.map((siswa_id) =>
-                    prisma.absensiSiswa.create({
+                siswaTanpaAbsensi.map((siswa_id) => {
+                    const matchedItem = data_absensi.find((d) => d.siswa_id === siswa_id);
+                    return prisma.absensiSiswa.create({
                         data: {
                             siswa_id,
                             tanggal: targetDate,
                             tap_in: null,
                             tap_out: null,
                             status_tapin: null,
-                            rfid_id: null
+                            rfid_id: null,
+                            status_harian: matchedItem ? matchedItem.status : null
                         }
-                    })
-                )
+                    });
+                })
             );
 
             const newAbsensi = await prisma.absensiSiswa.findMany({
@@ -1938,6 +1947,18 @@ const absensiManualWalas = async (req, res) => {
                 prisma.detailAbsensiSiswa.update({
                     where: { id },
                     data: { status, keterangan }
+                })
+            ),
+            ...data_absensi.map((item) =>
+                prisma.absensiSiswa.updateMany({
+                    where: {
+                        siswa_id: item.siswa_id,
+                        tanggal: targetDate,
+                        deleted_at: null
+                    },
+                    data: {
+                        status_harian: item.status
+                    }
                 })
             )
         ]);

@@ -115,7 +115,8 @@ const tapIn = async (req, res) => {
                 tanggal: todayDate,
                 tap_in: tapInTime,
                 rfid_id: rfid.id,
-                status_tapin: statusTapIn
+                status_tapin: statusTapIn,
+                status_harian: 'Hadir'
             },
             include: {
                 siswa: {
@@ -545,7 +546,16 @@ const getLaporanRange = async (req, res) => {
         }
 
         const absensiList = await prisma.absensiSiswa.findMany({
-            where: whereCondition,
+            where: {
+                ...whereCondition,
+                OR: [
+                    { status_harian: 'Hadir' },
+                    {
+                        status_harian: null,
+                        tap_in: { not: null }
+                    }
+                ]
+            },
             select: { tanggal: true }
         });
 
@@ -627,7 +637,8 @@ const getLaporanHarian = async (req, res) => {
             tanggal: formatDate(absensi.tanggal),
             tap_in: formatTime(absensi.tap_in),
             tap_out: formatTime(absensi.tap_out),
-            status_tapin: absensi.status_tapin
+            status_tapin: absensi.status_tapin,
+            status_harian: absensi.status_harian
         }));
 
         return res.status(200).json({
