@@ -69,7 +69,7 @@ app.use('/api/v1/role', roleRoutes);
 app.use('/api/v1/status-request', statusRequestRoutes);
 app.use('/api/v1/final-absensi', finalAbsensi);
 app.use('/api/v1/rekap', rekapRoutes);
-app.use('/api/export', exportRoutes);
+app.use('/api/v1/export', exportRoutes);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
