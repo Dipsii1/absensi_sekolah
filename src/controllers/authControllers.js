@@ -36,6 +36,11 @@ const userSelect = {
             }
         }
     },
+    pokjaUser: {
+        select: {
+            user_id: true,
+        }
+    },
     guru_id: true,
     guru: {
         select: {
@@ -476,10 +481,11 @@ const me = async (req, res) => {
         }
 
         const roles = extractRoles(user.userRole);
+        const { pokjaUser, ...userData } = user;
 
         return res.status(200).json({
             success: true,
-            data: { ...user, roles },
+            data: { ...userData, roles, is_pokja: Boolean(pokjaUser) },
         });
 
     } catch (error) {
