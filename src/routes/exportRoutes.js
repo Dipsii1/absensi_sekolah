@@ -1,5 +1,6 @@
 const express = require("express");
 const router  = express.Router();
+const { verifyToken, checkRole, requirePokja } = require("../middleware/auth");
 const {
     exportRekapKelasMonthlyExcel,
     exportRekapKelasSemesterExcel,
@@ -7,6 +8,8 @@ const {
     exportRekapKelasHarianExcel,
     exportRekapSiswaExcel,
 } = require("../controllers/exportControllers");
+
+router.use(verifyToken, checkRole("KESISWAAN"), requirePokja);
 
 // ── Rekap Siswa ────────────────────────────────────────────────
 // GET /api/export/rekap/siswa/excel?siswa_id=...&tanggal_mulai=...&tanggal_akhir=...

@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const rekapControllers = require("../controllers/rekapControllers.js");
+const { verifyToken, checkRole, requirePokja } = require("../middleware/auth");
+
+router.use(verifyToken, checkRole("KESISWAAN"), requirePokja);
 
 // rekap absensi (semua kelas)
 router.get('/rekap-absensi', rekapControllers.getRekapAbsensiSemuaKelas);

@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const prisma = require("../config/prisma");
 
 const verifyToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -57,5 +58,41 @@ const checkRole = (...allowedRoles) => {
     };
 };
 
+const requirePokja = async (req, res, next) => {
+    if (!req.user?.id) {
+        return res.status(401).json({
+            success: false,
+            message: "Unauthorized"
+        });
+    }
+
+    try {
+        const pokjaUser = await prisma.pokjaUser.findUnique({
+            where: {
+                user_id: req.user.id
+            },
+            select: {
+                user_id: true
+            }
+        });
+
+        if (!pokjaUser) {
+            return res.status(403).json({
+                success: false,
+                message: "Akses ditolak. Dibutuhkan akses Pokja"
+            });
+        }
+
+        next();
+    } catch (err) {
+        console.error("Error checking Pokja access:", err);
+
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server"
+        });
+    }
+};
+
  
-module.exports = { verifyToken, checkRole };
+module.exports = { verifyToken, checkRole, requirePokja };
