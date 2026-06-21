@@ -1,5 +1,6 @@
 const prisma = require("../config/prisma");
 const { formatDateTime } = require("../helper/indexUtils");
+const xlsx = require("xlsx");
 
 // get all
 const getAllRfid = async (req, res) => {
@@ -221,7 +222,7 @@ const createRFID = async (req, res) => {
 
         // Cek siswa sudah punya RFID aktif 
         if (is_active) {
-            const siswaActiveRFID = await prisma.rFID.findFirst({
+            const siswaActiveRFID = await prisma.RFID.findFirst({
                 where: {
                     siswa_id,
                     is_active: true,
@@ -238,7 +239,7 @@ const createRFID = async (req, res) => {
         }
 
         // Cek uid_rfid 
-        const existingRFID = await prisma.rFID.findFirst({
+        const existingRFID = await prisma.RFID.findFirst({
             where: { uid_rfid, deleted_at: null }
         });
 
@@ -252,7 +253,7 @@ const createRFID = async (req, res) => {
             }
 
             // uid_rfid pernah di-soft delete — restore
-            const restored = await prisma.rFID.update({
+            const restored = await prisma.RFID.update({
                 where: { id: existingRFID.id },
                 data: {
                     siswa_id,
@@ -297,7 +298,7 @@ const createRFID = async (req, res) => {
         }
 
         //  Buat RFID baru
-        const newRFID = await prisma.rFID.create({
+        const newRFID = await prisma.RFID.create({
             data: {
                 uid_rfid,
                 siswa_id,
@@ -558,11 +559,141 @@ const deleteRFID = async (req, res) => {
     }
 }
 
+const importRFID = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: "File xlsx wajib diupload"
+            });
+        }
+
+        const wb = xlsx.read(req.file.buffer, { type: "buffer" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = xlsx.utils.sheet_to_json(ws);
+
+        if (!rows.length) {
+            return res.status(400).json({
+                success: false,
+                message: "File xlsx kosong atau format tidak sesuai"
+            });
+        }
+
+        const results = {
+            inserted: 0,
+            skipped: 0,
+            errors: []
+        };
+
+        for (const row of rows) {
+            // Normalize NISN: bisa berupa angka (Excel auto-convert), pad ke 10 digit
+            const nisnRaw = String(row["NISN"] ?? "").trim();
+            const nisn = nisnRaw && nisnRaw !== "-"
+                ? nisnRaw.padStart(10, "0")
+                : "";
+
+            const uid_rfid = String(row["RFID"] ?? "").trim();
+            const nama = String(row["Nama"] ?? "").trim();
+            const nik = String(row["NIK"] ?? "").trim();
+
+            // Validasi: NISN kosong/dash, RFID kosong/dash/"undefined"
+            if (!nisn || !uid_rfid || uid_rfid === "-" || uid_rfid === "undefined") {
+                results.errors.push({
+                    nama,
+                    nisn: nisnRaw,
+                    uid_rfid,
+                    reason: "NISN atau RFID kosong / tidak valid"
+                });
+                continue;
+            }
+
+            // Cari siswa: coba NISN dulu, fallback ke NIK jika ada
+            let siswa = await prisma.siswa.findFirst({
+                where: { NISN: nisn, deleted_at: null }
+            });
+
+            // Fallback: coba NISN tanpa leading zero (jika database simpan tanpa padding)
+            if (!siswa) {
+                siswa = await prisma.siswa.findFirst({
+                    where: { NISN: String(parseInt(nisn, 10)), deleted_at: null }
+                });
+            }
+
+            // Fallback: coba NIK jika ada di model siswa
+            if (!siswa && nik && nik !== "-") {
+                siswa = await prisma.siswa.findFirst({
+                    where: { NIK: nik, deleted_at: null }
+                });
+            }
+
+            if (!siswa) {
+                results.errors.push({
+                    nama,
+                    nisn: nisnRaw,
+                    uid_rfid,
+                    reason: "Siswa tidak ditemukan di database"
+                });
+                continue;
+            }
+
+            // Cek uid_rfid sudah terdaftar (skip duplikat RFID)
+            const existingRFID = await prisma.RFID.findFirst({
+                where: { uid_rfid, deleted_at: null }
+            });
+
+            if (existingRFID) {
+                results.skipped++;
+                continue;
+            }
+
+            // Cek siswa sudah punya RFID aktif
+            const activeRFID = await prisma.RFID.findFirst({
+                where: { siswa_id: siswa.id, is_active: true, deleted_at: null }
+            });
+
+            if (activeRFID) {
+                results.errors.push({
+                    nama,
+                    nisn: nisnRaw,
+                    uid_rfid,
+                    reason: "Siswa sudah memiliki RFID aktif"
+                });
+                continue;
+            }
+
+            await prisma.RFID.create({
+                data: {
+                    uid_rfid,
+                    siswa_id: siswa.id,
+                    is_active: true
+                }
+            });
+
+            results.inserted++;
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Import selesai: ${results.inserted} berhasil, ${results.skipped} dilewati, ${results.errors.length} error`,
+            data: results
+        });
+
+    } catch (error) {
+        console.error("Error importing RFID:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     getAllRfid,
     loadAllRfid,
     getRfidById,
     createRFID,
     updateRFID,
-    deleteRFID
+    deleteRFID,
+    importRFID
 }
