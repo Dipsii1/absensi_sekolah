@@ -182,21 +182,6 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 ---
 
-## 📊 Contoh Output
-
-File laporan contoh tersedia di root repo:
-
-```
-Rekapitulasi absensi Genap kelas X 25_26.xlsx
-```
-
----
-
-## 📝 Lisensi
-
-MIT License — bebas digunakan dan dikembangkan.
-
----
 
 ## 👤 Developer
 
