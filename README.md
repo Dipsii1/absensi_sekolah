@@ -182,6 +182,125 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 ---
 
+## 📡 API Endpoints
+
+> Base URL: `http://localhost:3000/api`  
+> 🔒 = Memerlukan header `Authorization: Bearer <token>`
+
+---
+
+### 🔑 Auth
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `POST` | `/auth/login` | ❌ | Login user, mengembalikan JWT token |
+| `POST` | `/auth/logout` | 🔒 | Logout & invalidasi sesi |
+| `GET` | `/auth/me` | 🔒 | Ambil data user yang sedang login |
+| `PUT` | `/auth/change-password` | 🔒 | Ganti password user |
+
+---
+
+### 👤 User
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `GET` | `/users` | 🔒 | Ambil semua data user |
+| `GET` | `/users/:id` | 🔒 | Ambil detail user berdasarkan ID |
+| `POST` | `/users` | 🔒 | Tambah user baru |
+| `PUT` | `/users/:id` | 🔒 | Update data user |
+| `DELETE` | `/users/:id` | 🔒 | Hapus user |
+
+---
+
+### 👨‍🏫 Guru
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `GET` | `/guru` | 🔒 | Ambil semua data guru |
+| `GET` | `/guru/:id` | 🔒 | Ambil detail guru berdasarkan ID |
+| `POST` | `/guru` | 🔒 | Tambah data guru baru |
+| `PUT` | `/guru/:id` | 🔒 | Update data guru |
+| `DELETE` | `/guru/:id` | 🔒 | Hapus data guru |
+
+---
+
+### 🎒 Siswa
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `GET` | `/siswa` | 🔒 | Ambil semua data siswa |
+| `GET` | `/siswa/:id` | 🔒 | Ambil detail siswa berdasarkan ID |
+| `POST` | `/siswa` | 🔒 | Tambah siswa baru |
+| `PUT` | `/siswa/:id` | 🔒 | Update data siswa |
+| `DELETE` | `/siswa/:id` | 🔒 | Hapus data siswa |
+| `POST` | `/siswa/import` | 🔒 | Import massal siswa via file Excel |
+| `GET` | `/siswa/export` | 🔒 | Export data siswa ke Excel |
+
+---
+
+### 🏫 Kelas
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `GET` | `/kelas` | 🔒 | Ambil semua kelas |
+| `GET` | `/kelas/:id` | 🔒 | Ambil detail kelas |
+| `POST` | `/kelas` | 🔒 | Tambah kelas baru |
+| `PUT` | `/kelas/:id` | 🔒 | Update data kelas |
+| `DELETE` | `/kelas/:id` | 🔒 | Hapus kelas |
+| `GET` | `/kelas/:id/siswa` | 🔒 | Ambil daftar siswa di kelas tertentu |
+
+---
+
+### 📅 Tahun Ajaran
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `GET` | `/tahun-ajaran` | 🔒 | Ambil semua tahun ajaran |
+| `GET` | `/tahun-ajaran/aktif` | 🔒 | Ambil tahun ajaran yang sedang aktif |
+| `POST` | `/tahun-ajaran` | 🔒 | Tambah tahun ajaran baru |
+| `PUT` | `/tahun-ajaran/:id` | 🔒 | Update tahun ajaran |
+| `PUT` | `/tahun-ajaran/:id/aktifkan` | 🔒 | Set tahun ajaran sebagai aktif |
+| `DELETE` | `/tahun-ajaran/:id` | 🔒 | Hapus tahun ajaran |
+
+---
+
+### 🗓️ Jadwal
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `GET` | `/jadwal` | 🔒 | Ambil semua jadwal pelajaran |
+| `GET` | `/jadwal/:id` | 🔒 | Ambil detail jadwal |
+| `GET` | `/jadwal/kelas/:kelasId` | 🔒 | Ambil jadwal berdasarkan kelas |
+| `POST` | `/jadwal` | 🔒 | Tambah jadwal pelajaran |
+| `PUT` | `/jadwal/:id` | 🔒 | Update jadwal |
+| `DELETE` | `/jadwal/:id` | 🔒 | Hapus jadwal |
+
+---
+
+### ✅ Absensi
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `GET` | `/absensi` | 🔒 | Ambil data absensi (filter: tanggal, kelas) |
+| `GET` | `/absensi/:id` | 🔒 | Ambil detail absensi |
+| `POST` | `/absensi` | 🔒 | Catat absensi manual |
+| `POST` | `/absensi/rfid` | ❌ | Catat absensi via RFID tag |
+| `PUT` | `/absensi/:id` | 🔒 | Update status absensi |
+| `DELETE` | `/absensi/:id` | 🔒 | Hapus data absensi |
+| `POST` | `/absensi/finalisasi` | 🔒 | Finalisasi absensi harian (majority-rules) |
+
+---
+
+### 📊 Rekapitulasi & Laporan
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `GET` | `/rekap/kelas/:kelasId` | 🔒 | Rekap absensi per kelas & periode |
+| `GET` | `/rekap/siswa/:siswaId` | 🔒 | Rekap absensi per siswa |
+| `GET` | `/rekap/export/excel` | 🔒 | Export rekap absensi ke Excel |
+| `GET` | `/rekap/export/pdf` | 🔒 | Export rekap absensi ke PDF |
+
+---
 
 ## 👤 Developer
 
