@@ -20,7 +20,7 @@ const verifyToken = (req, res, next) => {
             ? "Access token sudah expired"
             : "Access token tidak valid";
 
-        return res.status(403).json({ success: false, message });
+        return res.status(401).json({ success: false, message });
     }
 };
 

@@ -6,6 +6,12 @@ const { verifyToken, checkRole, requirePokja } = require("../middleware/auth");
 
 router.use(verifyToken, checkRole("KESISWAAN"), requirePokja);
 
+// Filter metadata untuk halaman export Pokja
+router.get("/filters", finalAbsensi.getFinalAbsensiFilters);
+
+// Data final absensi untuk export Pokja
+router.get("/", finalAbsensi.getAllFinalAbsensi);
+
 // Finalisasi 1 siswa secara manual
 router.post("/siswa", finalAbsensi.finalisasiSiswa);
 
