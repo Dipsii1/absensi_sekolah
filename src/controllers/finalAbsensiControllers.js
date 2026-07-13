@@ -42,6 +42,34 @@ const formatFinalAbsensiRow = (siswa, record = null, fallbackTanggal = null) => 
   finalized_at: record?.finalized_at ? formatDateTime(record.finalized_at) : null,
 });
 
+const buildSiswaWhere = ({ kelas_id, jurusan, tahun_ajaran_id, search }) => {
+  const siswaWhere = {
+    deleted_at: null,
+  };
+
+  if (kelas_id) siswaWhere.kelas_id = parseInt(kelas_id);
+
+  const kelasWhere = {};
+  if (jurusan) kelasWhere.jurusan = jurusan;
+  if (tahun_ajaran_id) kelasWhere.tahun_ajaran_id = parseInt(tahun_ajaran_id);
+  if (Object.keys(kelasWhere).length) {
+    siswaWhere.kelas = {
+      ...kelasWhere,
+      deleted_at: null,
+    };
+  }
+
+  if (search) {
+    siswaWhere.OR = [
+      { nama: { contains: search, mode: "insensitive" } },
+      { NISN: { contains: search, mode: "insensitive" } },
+      { NIPD: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  return siswaWhere;
+};
+
 const getFinalAbsensiFilters = async (req, res) => {
   try {
     const [kelasList, tahunList] = await Promise.all([
@@ -114,6 +142,7 @@ const getAllFinalAbsensi = async (req, res) => {
       jurusan,
       tahun_ajaran_id,
       search,
+      include_empty,
     } = req.query;
 
     const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -121,28 +150,58 @@ const getAllFinalAbsensi = async (req, res) => {
     const skip = (page - 1) * limit;
     const dateWhere = buildDateWhere({ tanggal, tanggal_mulai, tanggal_akhir });
 
-    const siswaWhere = {
-      deleted_at: null,
-    };
+    const siswaWhere = buildSiswaWhere({ kelas_id, jurusan, tahun_ajaran_id, search });
+    const includeEmptyRows = include_empty !== "false";
 
-    if (kelas_id) siswaWhere.kelas_id = parseInt(kelas_id);
-
-    const kelasWhere = {};
-    if (jurusan) kelasWhere.jurusan = jurusan;
-    if (tahun_ajaran_id) kelasWhere.tahun_ajaran_id = parseInt(tahun_ajaran_id);
-    if (Object.keys(kelasWhere).length) {
-      siswaWhere.kelas = {
-        ...kelasWhere,
+    if (!includeEmptyRows) {
+      const finalAbsensiWhere = {
         deleted_at: null,
+        ...(dateWhere ? { tanggal: dateWhere } : {}),
+        ...(kelas_id ? { kelas_id: parseInt(kelas_id) } : {}),
+        siswa: siswaWhere,
       };
-    }
 
-    if (search) {
-      siswaWhere.OR = [
-        { nama: { contains: search, mode: "insensitive" } },
-        { NISN: { contains: search, mode: "insensitive" } },
-        { NIPD: { contains: search, mode: "insensitive" } },
-      ];
+      const [records, totalRecords] = await Promise.all([
+        prisma.finalAbsensi.findMany({
+          where: finalAbsensiWhere,
+          skip,
+          take: limit,
+          orderBy: [{ tanggal: "asc" }, { kelas_id: "asc" }, { siswa: { nama: "asc" } }],
+          include: {
+            siswa: {
+              include: {
+                kelas: {
+                  select: {
+                    id: true,
+                    kelas: true,
+                    jurusan: true,
+                    tahun_ajaran_id: true,
+                    tahun: {
+                      select: {
+                        id: true,
+                        tahun_ajaran: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
+        prisma.finalAbsensi.count({ where: finalAbsensiWhere }),
+      ]);
+
+      return res.status(200).json({
+        success: true,
+        message: "Berhasil mendapatkan data final absensi",
+        data: records.map((record) => formatFinalAbsensiRow(record.siswa, record)),
+        pagination: {
+          total: totalRecords,
+          page,
+          limit,
+          totalPages: Math.ceil(totalRecords / limit),
+        },
+      });
     }
 
     const [siswas, totalSiswa] = await Promise.all([
