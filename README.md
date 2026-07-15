@@ -7,8 +7,8 @@
 ![jwt auth](https://img.shields.io/badge/auth-JWT-orange)
 ![license MIT](https://img.shields.io/badge/license-MIT-green)
 
-Backend API untuk sistem **manajemen absensi sekolah** berbasis **Node.js + Express + Prisma**.  
-Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikasi Telegram**, **ekspor Excel & PDF**, **cron job otomatis**, serta **role-based access control** yang terstruktur.
+Backend API untuk sistem **manajemen absensi sekolah** berbasis **Node.js + Express + Prisma**.
+Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikasi Telegram**, **ekspor Excel**, **cron job otomatis**, serta **role-based access control** yang terstruktur.
 
 ---
 
@@ -17,30 +17,41 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
 - **Authentication & Authorization**
   - Login dengan JWT, password di-hash menggunakan bcrypt.
   - Role: `SUPER_ADMIN`, `ADMIN`, `GURU`, `WALAS`, `KESISWAAN`.
+  - Middleware `requirePokja` untuk akses yang memerlukan keanggotaan Pokja.
 
 - **Manajemen Data**
-  - CRUD Siswa (dengan import massal via Excel/RFID)
+  - CRUD Siswa (dengan import massal via Excel)
   - CRUD Guru & User
   - CRUD Kelas & Tahun Ajaran
   - CRUD Jadwal Pelajaran
+  - CRUD Mata Pelajaran
+  - CRUD Orang Tua
+  - CRUD Role (SUPER_ADMIN only)
+  - CRUD RFID
 
 - **Absensi**
-  - Pencatatan kehadiran harian berbasis RFID.
-  - Finalisasi absensi dengan sistem majority-rules (`FinalAbsensi`).
-  - Status: `HADIR`, `SAKIT`, `IZIN`, `ALPHA`.
+  - Pencatatan kehadiran harian berbasis RFID (tap-in & tap-out).
+  - Input absensi manual oleh Guru per jadwal pelajaran.
+  - Input absensi manual oleh Walas per kelas.
+  - Finalisasi absensi per siswa, per kelas, atau semua kelas.
+  - Status: `Hadir`, `Izin`, `Sakit`, `Alpha`.
 
 - **Rekapitulasi & Laporan**
-  - Ekspor rekap absensi ke **Excel** (ExcelJS & xlsx).
-  - Ekspor laporan ke **PDF** (PDFKit).
+  - Rekap absensi per kelas (harian, bulanan, semester, tahunan).
+  - Rekap absensi per siswa (harian, mingguan, bulanan, tahunan).
+  - Ekspor rekap absensi ke **Excel** (ExcelJS).
 
 - **Notifikasi Telegram**
   - Pengiriman notifikasi otomatis via Telegram Bot API.
 
 - **Penjadwalan Otomatis**
   - Cron job untuk pembuatan tahun ajaran baru & penyalinan kelas.
+  - Cron job untuk auto-approve status request absensi.
 
-- **Struktur Modular**
-  - Routes, controllers, middleware, dan utils terorganisir rapi.
+- **Status Request**
+  - Permintaan perubahan status absensi oleh Guru.
+  - Persetujuan oleh Walas.
+  - Auto-approve oleh sistem jika expired.
 
 ---
 
@@ -56,28 +67,51 @@ absensi_sekolah/
 │   └── stylesheets/            # Static CSS
 ├── src/
 │   ├── controllers/            # Logic handler tiap resource
-│   │   ├── authController.js
-│   │   ├── siswaController.js
-│   │   ├── guruController.js
-│   │   ├── kelasController.js
-│   │   ├── absensiController.js
-│   │   ├── jadwalController.js
-│   │   └── rekapController.js
-│   ├── middleware/             # Middleware global (auth, role, upload)
-│   │   ├── verifyToken.js
-│   │   ├── checkRole.js
-│   │   └── upload.js
+│   │   ├── authControllers.js
+│   │   ├── siswaControllers.js
+│   │   ├── guruControllers.js
+│   │   ├── kelasControllers.js
+│   │   ├── tahunControllers.js
+│   │   ├── jadwalControllers.js
+│   │   ├── mapelControllers.js
+│   │   ├── orangtuaControllers.js
+│   │   ├── usersControllers.js
+│   │   ├── roleControllers.js
+│   │   ├── rfidControllers.js
+│   │   ├── absensiSiswaControllers.js
+│   │   ├── detailAbsensiControllers.js
+│   │   ├── finalAbsensiControllers.js
+│   │   ├── rekapControllers.js
+│   │   ├── exportControllers.js
+│   │   └── statusRequestControllers.js
+│   ├── middleware/              # Middleware global
+│   │   ├── auth.js             # verifyToken, checkRole, requirePokja
+│   │   └── upload.js           # Multer upload handler
 │   ├── routes/                 # Routing modular
 │   │   ├── index.js
 │   │   ├── authRoutes.js
 │   │   ├── siswaRoutes.js
 │   │   ├── guruRoutes.js
-│   │   ├── absensiRoutes.js
-│   │   └── rekapRoutes.js
-│   └── utils/                  # Helper functions
-│       ├── telegram.js
-│       ├── excelHelper.js
-│       └── cronJob.js
+│   │   ├── kelasRoutes.js
+│   │   ├── tahunRoutes.js
+│   │   ├── jadwalRoutes.js
+│   │   ├── mapelRoutes.js
+│   │   ├── orangTuaRoutes.js
+│   │   ├── usersRoutes.js
+│   │   ├── roleRoutes.js
+│   │   ├── rfidRoutes.js
+│   │   ├── absensiSiswaRoutes.js
+│   │   ├── detailAbsensiRoutes.js
+│   │   ├── finalAbsensiRoutes.js
+│   │   ├── rekapRoutes.js
+│   │   ├── exportRoutes.js
+│   │   └── statusRequestRoutes.js
+│   ├── services/               # Service layer
+│   │   ├── telegramServices.js
+│   │   └── finalAbsensi.js
+│   └── cron/                   # Cron job scheduler
+│       ├── tahunAjaran.js
+│       └── autoApproveStatus.js
 ├── views/                      # Template Jade
 ├── app.js                      # Konfigurasi Express
 ├── prisma.config.ts
@@ -152,7 +186,7 @@ Aplikasi berjalan di → `http://localhost:3000`
 | Auth | JWT + bcrypt |
 | Scheduler | node-cron |
 | Notifikasi | node-telegram-bot-api |
-| Export | ExcelJS, xlsx, PDFKit |
+| Export | ExcelJS |
 | Upload | Multer |
 | HTTP Client | Axios |
 
@@ -175,16 +209,16 @@ Aplikasi berjalan di → `http://localhost:3000`
 | Role | Deskripsi |
 |---|---|
 | `SUPER_ADMIN` | Akses penuh ke seluruh sistem |
-| `ADMIN` | Manajemen data siswa, guru, kelas |
-| `GURU` | Input & lihat absensi kelas sendiri |
-| `WALAS` | Wali kelas — rekap absensi per kelas |
-| `KESISWAAN` | Lihat & ekspor laporan absensi |
+| `ADMIN` | Manajemen data siswa, guru, kelas, jadwal |
+| `GURU` | Input absensi per jadwal pelajaran |
+| `WALAS` | Wali kelas — input & pratinjau absensi per kelas |
+| `KESISWAAN` | Rekap absensi, finalisasi, & ekspor (wajib Pokja) |
 
 ---
 
 ## 📡 API Endpoints
 
-> Base URL: `http://localhost:3000/api`  
+> Base URL: `http://localhost:3000/api/v1`
 > 🔒 = Memerlukan header `Authorization: Bearer <token>`
 
 ---
@@ -196,109 +230,208 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `POST` | `/auth/login` | ❌ | Login user, mengembalikan JWT token |
 | `POST` | `/auth/logout` | 🔒 | Logout & invalidasi sesi |
 | `GET` | `/auth/me` | 🔒 | Ambil data user yang sedang login |
-| `PUT` | `/auth/change-password` | 🔒 | Ganti password user |
 
 ---
 
-### 👤 User
+### 👤 Users
 
-| Method | Endpoint | Auth | Deskripsi |
-|--------|----------|------|-----------|
-| `GET` | `/users` | 🔒 | Ambil semua data user |
-| `GET` | `/users/:id` | 🔒 | Ambil detail user berdasarkan ID |
-| `POST` | `/users` | 🔒 | Tambah user baru |
-| `PUT` | `/users/:id` | 🔒 | Update data user |
-| `DELETE` | `/users/:id` | 🔒 | Hapus user |
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/users` | 🔒 | Authenticated | Ambil semua data user |
+| `GET` | `/users/:id` | 🔒 | Authenticated | Ambil detail user |
+| `PUT` | `/users/:id` | 🔒 | `SUPER_ADMIN` | Update data user |
+| `DELETE` | `/users/:id` | 🔒 | `SUPER_ADMIN` | Hapus user |
+
+---
+
+### 🎭 Role
+
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/role` | 🔒 | `SUPER_ADMIN` | Ambil semua role |
+| `GET` | `/role/:id` | 🔒 | `SUPER_ADMIN` | Ambil detail role |
+| `POST` | `/role` | 🔒 | `SUPER_ADMIN` | Tambah role baru |
+| `PUT` | `/role/:id` | 🔒 | `SUPER_ADMIN` | Update role |
+| `DELETE` | `/role/:id` | 🔒 | `SUPER_ADMIN` | Hapus role |
 
 ---
 
 ### 👨‍🏫 Guru
 
-| Method | Endpoint | Auth | Deskripsi |
-|--------|----------|------|-----------|
-| `GET` | `/guru` | 🔒 | Ambil semua data guru |
-| `GET` | `/guru/:id` | 🔒 | Ambil detail guru berdasarkan ID |
-| `POST` | `/guru` | 🔒 | Tambah data guru baru |
-| `PUT` | `/guru/:id` | 🔒 | Update data guru |
-| `DELETE` | `/guru/:id` | 🔒 | Hapus data guru |
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/guru` | 🔒 | Authenticated | Ambil semua data guru |
+| `GET` | `/guru/walas` | 🔒 | Authenticated | Ambil guru yang menjadi wali kelas |
+| `GET` | `/guru/:id` | 🔒 | Authenticated | Ambil detail guru |
+| `POST` | `/guru` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Tambah data guru baru |
+| `PUT` | `/guru/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Update data guru |
+| `DELETE` | `/guru/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Hapus data guru |
+
+---
+
+### 👨‍👩‍👦 Orang Tua
+
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/orang-tua` | 🔒 | Authenticated | Ambil semua data orang tua |
+| `GET` | `/orang-tua/:id` | 🔒 | Authenticated | Ambil detail orang tua |
+| `POST` | `/orang-tua` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Tambah data orang tua |
+| `PUT` | `/orang-tua/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Update data orang tua |
+| `DELETE` | `/orang-tua/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Hapus data orang tua |
 
 ---
 
 ### 🎒 Siswa
 
-| Method | Endpoint | Auth | Deskripsi |
-|--------|----------|------|-----------|
-| `GET` | `/siswa` | 🔒 | Ambil semua data siswa |
-| `GET` | `/siswa/:id` | 🔒 | Ambil detail siswa berdasarkan ID |
-| `POST` | `/siswa` | 🔒 | Tambah siswa baru |
-| `PUT` | `/siswa/:id` | 🔒 | Update data siswa |
-| `DELETE` | `/siswa/:id` | 🔒 | Hapus data siswa |
-| `POST` | `/siswa/import` | 🔒 | Import massal siswa via file Excel |
-| `GET` | `/siswa/export` | 🔒 | Export data siswa ke Excel |
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/siswa` | 🔒 | Authenticated | Ambil semua data siswa |
+| `GET` | `/siswa/:id` | 🔒 | Authenticated | Ambil detail siswa |
+| `POST` | `/siswa` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Tambah siswa baru |
+| `PUT` | `/siswa/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Update data siswa |
+| `DELETE` | `/siswa/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Hapus data siswa |
+| `POST` | `/siswa/import` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Import massal siswa via file Excel |
 
 ---
 
 ### 🏫 Kelas
 
-| Method | Endpoint | Auth | Deskripsi |
-|--------|----------|------|-----------|
-| `GET` | `/kelas` | 🔒 | Ambil semua kelas |
-| `GET` | `/kelas/:id` | 🔒 | Ambil detail kelas |
-| `POST` | `/kelas` | 🔒 | Tambah kelas baru |
-| `PUT` | `/kelas/:id` | 🔒 | Update data kelas |
-| `DELETE` | `/kelas/:id` | 🔒 | Hapus kelas |
-| `GET` | `/kelas/:id/siswa` | 🔒 | Ambil daftar siswa di kelas tertentu |
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/kelas` | 🔒 | Authenticated | Ambil semua kelas |
+| `GET` | `/kelas/:id` | 🔒 | Authenticated | Ambil detail kelas |
+| `POST` | `/kelas` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Tambah kelas baru |
+| `PUT` | `/kelas/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Update data kelas |
+| `DELETE` | `/kelas/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Hapus kelas |
+| `PATCH` | `/kelas/:id/assign-walas` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Assign wali kelas |
 
 ---
 
 ### 📅 Tahun Ajaran
 
-| Method | Endpoint | Auth | Deskripsi |
-|--------|----------|------|-----------|
-| `GET` | `/tahun-ajaran` | 🔒 | Ambil semua tahun ajaran |
-| `GET` | `/tahun-ajaran/aktif` | 🔒 | Ambil tahun ajaran yang sedang aktif |
-| `POST` | `/tahun-ajaran` | 🔒 | Tambah tahun ajaran baru |
-| `PUT` | `/tahun-ajaran/:id` | 🔒 | Update tahun ajaran |
-| `PUT` | `/tahun-ajaran/:id/aktifkan` | 🔒 | Set tahun ajaran sebagai aktif |
-| `DELETE` | `/tahun-ajaran/:id` | 🔒 | Hapus tahun ajaran |
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/tahun-ajaran` | 🔒 | Authenticated | Ambil semua tahun ajaran |
+| `GET` | `/tahun-ajaran/:id` | 🔒 | Authenticated | Ambil detail tahun ajaran |
+| `POST` | `/tahun-ajaran` | 🔒 | `SUPER_ADMIN` | Tambah tahun ajaran baru |
+| `PUT` | `/tahun-ajaran/:id` | 🔒 | `SUPER_ADMIN` | Update tahun ajaran |
+| `DELETE` | `/tahun-ajaran/:id` | 🔒 | `SUPER_ADMIN` | Hapus tahun ajaran |
+
+---
+
+### 📚 Mata Pelajaran
+
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/mata-pelajaran` | 🔒 | Authenticated | Ambil semua mata pelajaran |
+| `GET` | `/mata-pelajaran/:id` | 🔒 | Authenticated | Ambil detail mata pelajaran |
+| `POST` | `/mata-pelajaran` | 🔒 | `SUPER_ADMIN` | Tambah mata pelajaran baru |
+| `PUT` | `/mata-pelajaran/:id` | 🔒 | `SUPER_ADMIN` | Update mata pelajaran |
+| `DELETE` | `/mata-pelajaran/:id` | 🔒 | `SUPER_ADMIN` | Hapus mata pelajaran |
 
 ---
 
 ### 🗓️ Jadwal
 
-| Method | Endpoint | Auth | Deskripsi |
-|--------|----------|------|-----------|
-| `GET` | `/jadwal` | 🔒 | Ambil semua jadwal pelajaran |
-| `GET` | `/jadwal/:id` | 🔒 | Ambil detail jadwal |
-| `GET` | `/jadwal/kelas/:kelasId` | 🔒 | Ambil jadwal berdasarkan kelas |
-| `POST` | `/jadwal` | 🔒 | Tambah jadwal pelajaran |
-| `PUT` | `/jadwal/:id` | 🔒 | Update jadwal |
-| `DELETE` | `/jadwal/:id` | 🔒 | Hapus jadwal |
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/jadwal` | 🔒 | Authenticated | Ambil semua jadwal pelajaran |
+| `POST` | `/jadwal` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Tambah jadwal pelajaran |
+| `POST` | `/jadwal/import` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Import jadwal via Excel |
+| `PUT` | `/jadwal/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Update jadwal |
+| `DELETE` | `/jadwal/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Hapus jadwal |
 
 ---
 
-### ✅ Absensi
+### 📇 RFID
 
 | Method | Endpoint | Auth | Deskripsi |
 |--------|----------|------|-----------|
-| `GET` | `/absensi` | 🔒 | Ambil data absensi (filter: tanggal, kelas) |
-| `GET` | `/absensi/:id` | 🔒 | Ambil detail absensi |
-| `POST` | `/absensi` | 🔒 | Catat absensi manual |
-| `POST` | `/absensi/rfid` | ❌ | Catat absensi via RFID tag |
-| `PUT` | `/absensi/:id` | 🔒 | Update status absensi |
-| `DELETE` | `/absensi/:id` | 🔒 | Hapus data absensi |
-| `POST` | `/absensi/finalisasi` | 🔒 | Finalisasi absensi harian (majority-rules) |
+| `GET` | `/rfid` | 🔒 | Ambil semua data RFID |
+| `GET` | `/rfid/load-Rfid` | 🔒 | Load semua RFID (aktif) |
+| `GET` | `/rfid/:id` | 🔒 | Ambil detail RFID |
+| `POST` | `/rfid` | 🔒 | Tambah RFID baru |
+| `POST` | `/rfid/import` | 🔒 | Import massal RFID via Excel |
+| `PUT` | `/rfid/:id` | 🔒 | Update data RFID |
+| `PATCH` | `/rfid/:id` | 🔒 | Patch data RFID |
+| `DELETE` | `/rfid/:id` | 🔒 | Hapus RFID |
 
 ---
 
-### 📊 Rekapitulasi & Laporan
+### ✅ Absensi Siswa
 
 | Method | Endpoint | Auth | Deskripsi |
 |--------|----------|------|-----------|
-| `GET` | `/rekap/kelas/:kelasId` | 🔒 | Rekap absensi per kelas & periode |
-| `GET` | `/rekap/siswa/:siswaId` | 🔒 | Rekap absensi per siswa |
-| `GET` | `/rekap/export/excel` | 🔒 | Export rekap absensi ke Excel |
-| `GET` | `/rekap/export/pdf` | 🔒 | Export rekap absensi ke PDF |
+| `POST` | `/absensi-siswa/tap-in` | ❌ | Catat absensi masuk via RFID |
+| `POST` | `/absensi-siswa/tap-out` | ❌ | Catat absensi keluar via RFID |
+| `GET` | `/absensi-siswa` | 🔒 | Ambil semua data absensi |
+| `GET` | `/absensi-siswa/laporan/harian` | 🔒 | Laporan absensi harian |
+| `GET` | `/absensi-siswa/laporan/range` | 🔒 | Laporan absensi rentang tanggal |
+| `GET` | `/absensi-siswa/:id` | 🔒 | Ambil detail absensi |
+| `PUT` | `/absensi-siswa/:id` | 🔒 | Update data absensi |
+| `DELETE` | `/absensi-siswa/:id` | 🔒 | Hapus data absensi |
+
+---
+
+### 📝 Detail Absensi
+
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `POST` | `/detail-absensi/absensi-guru` | 🔒 | `GURU` | Input absensi oleh guru per jadwal |
+| `PUT` | `/detail-absensi/update-status` | 🔒 | `GURU` | Update status absensi manual |
+| `DELETE` | `/detail-absensi/:id` | 🔒 | `GURU` | Hapus detail absensi |
+| `GET` | `/detail-absensi/pratinjau-walas` | 🔒 | `WALAS` | Pratinjau absensi untuk walas |
+| `POST` | `/detail-absensi/absensi-walas` | 🔒 | `WALAS` | Input absensi manual oleh walas |
+
+---
+
+### 🔒 Final Absensi
+
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/final-absensi/filters` | 🔒 | `KESISWAAN` + Pokja | Ambil filter metadata untuk export |
+| `GET` | `/final-absensi` | 🔒 | `KESISWAAN` + Pokja | Ambil semua data final absensi |
+| `POST` | `/final-absensi/siswa` | 🔒 | `KESISWAAN` + Pokja | Finalisasi 1 siswa secara manual |
+| `POST` | `/final-absensi/kelas/:kelas_id` | 🔒 | `KESISWAAN` + Pokja | Finalisasi seluruh siswa dalam 1 kelas |
+| `POST` | `/final-absensi/semua-kelas` | 🔒 | `KESISWAAN` + Pokja | Finalisasi semua kelas aktif |
+
+---
+
+### 📊 Rekapitulasi
+
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/rekap/rekap-absensi` | 🔒 | `KESISWAAN` + Pokja | Rekap absensi semua kelas |
+| `GET` | `/rekap/rekap-siswa` | 🔒 | `KESISWAAN` + Pokja | Rekap absensi per siswa |
+| `GET` | `/rekap/rekap-siswa/yearly` | 🔒 | `KESISWAAN` + Pokja | Rekap absensi siswa tahunan |
+| `GET` | `/rekap/rekap-siswa/monthly` | 🔒 | `KESISWAAN` + Pokja | Rekap absensi siswa bulanan |
+| `GET` | `/rekap/rekap-siswa/weekly` | 🔒 | `KESISWAAN` + Pokja | Rekap absensi siswa mingguan |
+| `GET` | `/rekap/rekap-kelas` | 🔒 | `KESISWAAN` + Pokja | Rekap absensi per kelas |
+| `GET` | `/rekap/rekap-kelas/yearly` | 🔒 | `KESISWAAN` + Pokja | Rekap absensi kelas tahunan |
+| `GET` | `/rekap/rekap-kelas/monthly` | 🔒 | `KESISWAAN` + Pokja | Rekap absensi kelas bulanan |
+| `GET` | `/rekap/rekap-kelas/semester` | 🔒 | `KESISWAAN` + Pokja | Rekap absensi kelas semester |
+
+---
+
+### 📥 Export
+
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/export/rekap/siswa/excel` | 🔒 | `KESISWAAN` + Pokja | Export rekap siswa ke Excel |
+| `GET` | `/export/rekap/kelas/harian/excel` | 🔒 | `KESISWAAN` + Pokja | Export rekap kelas harian ke Excel |
+| `GET` | `/export/rekap/kelas/bulanan/excel` | 🔒 | `KESISWAAN` + Pokja | Export rekap kelas bulanan ke Excel |
+| `GET` | `/export/rekap/kelas/semester/excel` | 🔒 | `KESISWAAN` + Pokja | Export rekap kelas semester ke Excel |
+| `GET` | `/export/rekap/kelas/tahunan/excel` | 🔒 | `KESISWAAN` + Pokja | Export rekap kelas tahunan ke Excel |
+
+---
+
+### 📬 Status Request
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `POST` | `/status-request` | 🔒 | Buat permintaan perubahan status absensi |
+| `GET` | `/status-request/pending` | 🔒 | Ambil semua request yang pending |
+| `PATCH` | `/status-request/:id/respond` | 🔒 | Setujui/tolak permintaan |
 
 ---
 
