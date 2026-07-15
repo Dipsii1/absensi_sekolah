@@ -21,6 +21,7 @@ const formatFinalAbsensiRow = (siswa, record = null, fallbackTanggal = null) => 
   nama: siswa.nama,
   NISN: siswa.NISN,
   NIPD: siswa.NIPD,
+  NIK: siswa.NIK,
   kelas_id: siswa.kelas?.id ?? null,
   kelas: siswa.kelas
     ? {
@@ -64,6 +65,7 @@ const buildSiswaWhere = ({ kelas_id, jurusan, tahun_ajaran_id, search }) => {
       { nama: { contains: search, mode: "insensitive" } },
       { NISN: { contains: search, mode: "insensitive" } },
       { NIPD: { contains: search, mode: "insensitive" } },
+      { NIK: { contains: search, mode: "insensitive" } },
     ];
   }
 

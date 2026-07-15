@@ -12,6 +12,9 @@ const seedSiswa = require("./seeders/siswaSeeder");
 const seedRFID = require("./seeders/rfidSeeder");
 const seedAbsensi = require("./seeders/absensiSeeder");
 const seedUser = require("./seeders/userSeeder");
+const seedPokjaUser = require("./seeders/pokjaUserSeeder");
+const seedPermintaanStatus = require("./seeders/permintaanStatusAbsensiSeeder");
+const seedFinalAbsensi = require("./seeders/finalAbsensiSeeder");
 
 async function main() {
     console.log("🌱 Mulai seeding...\n");
@@ -27,7 +30,10 @@ async function main() {
     const rfidSiswa = await seedRFID(prisma, siswaList);
     await seedAbsensi(prisma, siswaList);
 
-    await seedUser(prisma, roleMap, guruList);
+    const userList = await seedUser(prisma, roleMap, guruList);
+    await seedPokjaUser(prisma, userList);
+    await seedPermintaanStatus(prisma, siswaList, kelasList, guruList);
+    await seedFinalAbsensi(prisma, siswaList, kelasList);
 
     console.log("\n✅ Seeding selesai!");
 }

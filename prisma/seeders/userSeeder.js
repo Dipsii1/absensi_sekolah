@@ -62,6 +62,8 @@ module.exports = async (prisma, roleMap, guruList) => {
     },
   ];
 
+  const userList = [];
+
   for (const data of userData) {
     let user = await prisma.user.findFirst({
       where: { email: data.email, deleted_at: null },
@@ -77,6 +79,8 @@ module.exports = async (prisma, roleMap, guruList) => {
         },
       });
     }
+
+    userList.push(user);
 
     for (const roleName of data.roles) {
       const role = roleMap[roleName];
@@ -102,4 +106,6 @@ module.exports = async (prisma, roleMap, guruList) => {
 
     console.log(`${data.roles.join(", ")} | ${data.username} | ${data.email}`);
   }
+
+  return userList;
 };

@@ -638,11 +638,42 @@ const importRFID = async (req, res) => {
 
             // Cek uid_rfid sudah terdaftar (skip duplikat RFID)
             const existingRFID = await prisma.RFID.findFirst({
-                where: { uid_rfid, deleted_at: null }
+                where: { uid_rfid }
             });
 
             if (existingRFID) {
-                results.skipped++;
+                if (!existingRFID.deleted_at) {
+                    // Masih aktif/terpakai -> skip
+                    results.skipped++;
+                    continue;
+                }
+
+                // Pernah di-soft-delete -> restore & pasangkan ke siswa saat ini
+                // (tetap cek dulu siswa belum punya RFID aktif lain, sudah dilakukan di bawah)
+                const activeRFID = await prisma.RFID.findFirst({
+                    where: { siswa_id: siswa.id, is_active: true, deleted_at: null }
+                });
+
+                if (activeRFID) {
+                    results.errors.push({
+                        nama,
+                        nisn: nisnRaw,
+                        uid_rfid,
+                        reason: "Siswa sudah memiliki RFID aktif"
+                    });
+                    continue;
+                }
+
+                await prisma.RFID.update({
+                    where: { id: existingRFID.id },
+                    data: {
+                        siswa_id: siswa.id,
+                        is_active: true,
+                        deleted_at: null
+                    }
+                });
+
+                results.inserted++;
                 continue;
             }
 

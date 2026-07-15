@@ -163,6 +163,7 @@ const createSiswa = async (req, res) => {
         const {
             NISN,
             NIPD,
+            NIK,
             nama,
             alamat,
             gender,
@@ -174,19 +175,22 @@ const createSiswa = async (req, res) => {
         } = req.body;
 
         // Validasi input wajib siswa
-        if (!NISN || !NIPD || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !nama_kelas || !jurusan) {
+        if (!NISN || !NIPD || !NIK || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !nama_kelas || !jurusan) {
             return res.status(400).json({
                 success: false,
                 message: "Semua field siswa wajib diisi"
             });
         }
 
-        // Validasi NISN & NIPD harus angka
+        // Validasi NISN, NIPD & NIK harus angka
         if (!/^\d+$/.test(NISN)) {
             return res.status(400).json({ success: false, message: "NISN harus berupa angka" });
         }
         if (!/^\d+$/.test(NIPD)) {
             return res.status(400).json({ success: false, message: "NIPD harus berupa angka" });
+        }
+        if (!/^\d+$/.test(NIK)) {
+            return res.status(400).json({ success: false, message: "NIK harus berupa angka" });
         }
 
         // Cek duplikasi NISN
@@ -199,6 +203,12 @@ const createSiswa = async (req, res) => {
         const existingNIPD = await prisma.Siswa.findFirst({ where: { NIPD, deleted_at: null } });
         if (existingNIPD) {
             return res.status(409).json({ success: false, message: "NIPD sudah terdaftar" });
+        }
+
+        // Cek duplikasi NIK
+        const existingNIK = await prisma.Siswa.findFirst({ where: { NIK, deleted_at: null } });
+        if (existingNIK) {
+            return res.status(409).json({ success: false, message: "NIK sudah terdaftar" });
         }
 
         // Cari kelas berdasarkan nama + jurusan
@@ -267,6 +277,7 @@ const createSiswa = async (req, res) => {
             data: {
                 NISN,
                 NIPD,
+                NIK,
                 nama,
                 alamat,
                 gender,
@@ -305,6 +316,7 @@ const updateSiswa = async (req, res) => {
         const {
             NISN,
             NIPD,
+            NIK,
             nama,
             alamat,
             gender,
@@ -316,10 +328,10 @@ const updateSiswa = async (req, res) => {
         } = req.body;
 
         // Validasi input wajib
-        if (!NISN || !NIPD || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
+        if (!NISN || !NIPD || !NIK || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
             return res.status(400).json({
                 success: false,
-                message: "NISN, NIPD, nama siswa, alamat, gender, tanggal lahir, nomor telepon, dan kelas wajib diisi"
+                message: "NISN, NIPD, NIK, nama siswa, alamat, gender, tanggal lahir, nomor telepon, dan kelas wajib diisi"
             });
         }
 
@@ -345,6 +357,14 @@ const updateSiswa = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "NIPD harus berupa angka"
+            });
+        }
+
+        // Validasi NIK harus angka
+        if (!/^\d+$/.test(NIK)) {
+            return res.status(400).json({
+                success: false,
+                message: "NIK harus berupa angka"
             });
         }
 
@@ -418,6 +438,18 @@ const updateSiswa = async (req, res) => {
             });
         }
 
+        // Cek duplikasi NIK (kecuali data sendiri)
+        const duplicateNIK = await prisma.siswa.findFirst({
+            where: { NIK, deleted_at: null, NOT: { id } }
+        });
+
+        if (duplicateNIK) {
+            return res.status(409).json({
+                success: false,
+                message: "NIK sudah digunakan oleh siswa lain"
+            });
+        }
+
         // Konversi tanggal lahir
         const tanggalLahirDate = new Date(tanggal_lahir);
         if (isNaN(tanggalLahirDate.getTime())) {
@@ -446,6 +478,7 @@ const updateSiswa = async (req, res) => {
                 data: {
                     NISN,
                     NIPD,
+                    NIK,
                     nama,
                     alamat,
                     gender,
@@ -568,7 +601,7 @@ const importSiswa = async (req, res) => {
         }
 
         const requiredColumns = [
-            "NISN", "NIPD", "nama", "alamat", "gender",
+            "NISN", "NIPD", "NIK", "nama", "alamat", "gender",
             "tanggal_lahir", "nomor_telepon", "nama_kelas", "jurusan"
         ];
         const missingColumns = requiredColumns.filter(col => !Object.keys(rows[0]).includes(col));
@@ -581,9 +614,10 @@ const importSiswa = async (req, res) => {
 
         const allNISN = [...new Set(rows.map(r => String(r.NISN).trim()).filter(Boolean))];
         const allNIPD = [...new Set(rows.map(r => String(r.NIPD).trim()).filter(Boolean))];
+        const allNIK = [...new Set(rows.map(r => String(r.NIK).trim()).filter(Boolean))];
         const allNIKOrtu = [...new Set(rows.map(r => String(r.NIK_orangtua || "").trim()).filter(Boolean))];
 
-        const [existingSiswaNISN, existingSiswaNIPD, existingOrtuList, kelasList] = await Promise.all([
+        const [existingSiswaNISN, existingSiswaNIPD, existingSiswaNIK, existingOrtuList, kelasList] = await Promise.all([
             prisma.siswa.findMany({
                 where: { NISN: { in: allNISN }, deleted_at: null },
                 select: { NISN: true }
@@ -591,6 +625,10 @@ const importSiswa = async (req, res) => {
             prisma.siswa.findMany({
                 where: { NIPD: { in: allNIPD }, deleted_at: null },
                 select: { NIPD: true }
+            }),
+            prisma.siswa.findMany({
+                where: { NIK: { in: allNIK }, deleted_at: null },
+                select: { NIK: true }
             }),
             allNIKOrtu.length > 0
                 ? prisma.OrangTua.findMany({
@@ -606,6 +644,7 @@ const importSiswa = async (req, res) => {
 
         const existingNISNSet = new Set(existingSiswaNISN.map(s => s.NISN));
         const existingNIPDSet = new Set(existingSiswaNIPD.map(s => s.NIPD));
+        const existingNIKSet = new Set(existingSiswaNIK.map(s => s.NIK));
         const ortuMap = new Map(existingOrtuList.map(o => [o.NIK, o.id]));
         const kelasMap = new Map(kelasList.map(k => [`${k.kelas}__${k.jurusan}`, k.id]));
 
@@ -613,6 +652,7 @@ const importSiswa = async (req, res) => {
         const toInsert = [];
         const nisnInFile = new Set();
         const nipdInFile = new Set();
+        const nikInFile = new Set();
         const VALID_GENDER = ["L", "P"];
 
         for (let i = 0; i < rows.length; i++) {
@@ -622,6 +662,7 @@ const importSiswa = async (req, res) => {
 
             const NISN = String(row.NISN).trim();
             const NIPD = String(row.NIPD).trim();
+            const NIK = String(row.NIK).trim();
             const nama = String(row.nama).trim();
             const alamat = String(row.alamat).trim();
             const gender = String(row.gender).trim();
@@ -638,6 +679,7 @@ const importSiswa = async (req, res) => {
 
             if (!NISN) rowErrors.push("NISN kosong");
             if (!NIPD) rowErrors.push("NIPD kosong");
+            if (!NIK) rowErrors.push("NIK kosong");
             if (!nama) rowErrors.push("nama kosong");
             if (!alamat) rowErrors.push("alamat kosong");
             if (!gender) rowErrors.push("gender kosong");
@@ -648,6 +690,7 @@ const importSiswa = async (req, res) => {
 
             if (NISN && !/^\d+$/.test(NISN)) rowErrors.push("NISN harus berupa angka");
             if (NIPD && !/^\d+$/.test(NIPD)) rowErrors.push("NIPD harus berupa angka");
+            if (NIK && !/^\d+$/.test(NIK)) rowErrors.push("NIK harus berupa angka");
 
             if (gender && !VALID_GENDER.includes(gender)) {
                 rowErrors.push(`gender tidak valid (harus L atau P, ditemukan: "${gender}")`);
@@ -655,6 +698,7 @@ const importSiswa = async (req, res) => {
 
             if (NISN && existingNISNSet.has(NISN)) rowErrors.push(`NISN ${NISN} sudah terdaftar di database`);
             if (NIPD && existingNIPDSet.has(NIPD)) rowErrors.push(`NIPD ${NIPD} sudah terdaftar di database`);
+            if (NIK && existingNIKSet.has(NIK)) rowErrors.push(`NIK ${NIK} sudah terdaftar di database`);
 
             if (NISN) {
                 if (nisnInFile.has(NISN)) rowErrors.push(`NISN ${NISN} duplikat dalam file`);
@@ -663,6 +707,10 @@ const importSiswa = async (req, res) => {
             if (NIPD) {
                 if (nipdInFile.has(NIPD)) rowErrors.push(`NIPD ${NIPD} duplikat dalam file`);
                 else nipdInFile.add(NIPD);
+            }
+            if (NIK) {
+                if (nikInFile.has(NIK)) rowErrors.push(`NIK ${NIK} duplikat dalam file`);
+                else nikInFile.add(NIK);
             }
 
             let tanggalLahirDate = null;
@@ -705,7 +753,7 @@ const importSiswa = async (req, res) => {
             }
 
             toInsert.push({
-                NISN, NIPD, nama, alamat, gender,
+                NISN, NIPD, NIK, nama, alamat, gender,
                 tanggal_lahir: tanggalLahirDate,
                 nomor_telepon,
                 kelas_id: kelasId,
@@ -735,7 +783,7 @@ const importSiswa = async (req, res) => {
             const siswaNoOrtu = toInsert
                 .filter(s => !s.orangtuaBaru)
                 .map(s => ({
-                    NISN: s.NISN, NIPD: s.NIPD, nama: s.nama,
+                    NISN: s.NISN, NIPD: s.NIPD, NIK: s.NIK, nama: s.nama,
                     alamat: s.alamat, gender: s.gender,
                     tanggal_lahir: s.tanggal_lahir,
                     nomor_telepon: s.nomor_telepon,
@@ -750,7 +798,7 @@ const importSiswa = async (req, res) => {
             for (const s of toInsert.filter(s => s.orangtuaBaru)) {
                 await tx.siswa.create({
                     data: {
-                        NISN: s.NISN, NIPD: s.NIPD, nama: s.nama,
+                        NISN: s.NISN, NIPD: s.NIPD, NIK: s.NIK, nama: s.nama,
                         alamat: s.alamat, gender: s.gender,
                         tanggal_lahir: s.tanggal_lahir,
                         nomor_telepon: s.nomor_telepon,

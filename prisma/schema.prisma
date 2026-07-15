@@ -107,6 +107,7 @@ model Siswa {
   id            String      @id @default(uuid()) @db.Uuid
   NISN          String      @unique @db.VarChar(20)
   NIPD          String      @unique @db.VarChar(20)
+  NIK           String      @unique @db.VarChar(20)
   nama          String      @db.VarChar(255)
   alamat        String      @db.Text
   gender        Gender
