@@ -32,7 +32,7 @@ const formatFinalAbsensiRow = (siswa, record = null, fallbackTanggal = null) => 
         tahun: siswa.kelas.tahun,
       }
     : null,
-  tanggal: record?.tanggal ? formatDate(record.tanggal) : fallbackTanggal,
+  tanggal: record?.tanggal ? record.tanggal.toISOString().slice(0, 10) : fallbackTanggal,
   status_final: record?.status_final ?? null,
   total_hadir: record?.total_hadir ?? 0,
   total_izin: record?.total_izin ?? 0,
@@ -134,6 +134,57 @@ const getFinalAbsensiFilters = async (req, res) => {
 
 // List data final absensi untuk halaman export Pokja.
 // Tetap mengambil siswa sebagai basis supaya siswa terdaftar tanpa final_absensi ikut tampil.
+// Generate all dates between start and end (inclusive)
+const generateDatesRange = (startStr, endStr) => {
+  const dates = [];
+  const current = parseTanggal(startStr);
+  const end = parseTanggal(endStr);
+  while (current <= end) {
+    dates.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+};
+
+// Auto-finalize for dates that have no finalAbsensi records yet.
+// Only finalizes dates that actually have absensiSiswa data (no point finalizing empty dates).
+const autoFinalizeIfNeeded = async (dates) => {
+  if (!dates.length) return;
+
+  // Find which dates already have finalAbsensi records
+  const existingDates = await prisma.finalAbsensi.groupBy({
+    by: ["tanggal"],
+    where: {
+      tanggal: { in: dates },
+      deleted_at: null,
+    },
+  });
+  const existingSet = new Set(existingDates.map((d) => d.tanggal.toISOString()))
+
+  // Find which dates actually have absensiSiswa data
+  const datesWithAbsensi = await prisma.absensiSiswa.groupBy({
+    by: ["tanggal"],
+    where: {
+      tanggal: { in: dates },
+      deleted_at: null,
+    },
+  });
+  const absensiSet = new Set(datesWithAbsensi.map((d) => d.tanggal.toISOString()))
+
+  // Only finalize dates that have absensi data but no finalAbsensi records
+  for (const date of dates) {
+    const dateKey = date.toISOString();
+    if (!existingSet.has(dateKey) && absensiSet.has(dateKey)) {
+      console.log(`[Auto-Finalize] No finalAbsensi for ${dateKey.slice(0, 10)}, running finalization...`);
+      try {
+        await finalisasiSemuaKelasAktif(date);
+      } catch (err) {
+        console.error(`[Auto-Finalize] Failed for ${dateKey.slice(0, 10)}:`, err.message);
+      }
+    }
+  }
+};
+
 const getAllFinalAbsensi = async (req, res) => {
   try {
     const {
@@ -154,6 +205,17 @@ const getAllFinalAbsensi = async (req, res) => {
 
     const siswaWhere = buildSiswaWhere({ kelas_id, jurusan, tahun_ajaran_id, search });
     const includeEmptyRows = include_empty !== "false";
+
+    // Auto-finalize for queried dates that have no records yet
+    if (dateWhere && !includeEmptyRows) {
+      if (tanggal) {
+        await autoFinalizeIfNeeded([parseTanggal(tanggal)]);
+      } else if (tanggal_mulai && tanggal_akhir) {
+        const dates = generateDatesRange(tanggal_mulai, tanggal_akhir);
+        // Limit to 31 days to prevent abuse
+        await autoFinalizeIfNeeded(dates.slice(0, 31));
+      }
+    }
 
     if (!includeEmptyRows) {
       const finalAbsensiWhere = {
