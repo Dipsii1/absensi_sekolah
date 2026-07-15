@@ -44,14 +44,6 @@ const tapIn = async (req, res) => {
             });
         }
         
-         if (rfid.siswa.status_siswa !== "Active") {
-            return res.status(403).json({
-                success: false,
-                message: `Siswa ${rfid.siswa.nama} tidak dapat melakukan tap in karena berstatus ${rfid.siswa.status_siswa}`
-            });
-        }
-
-
         const todayStr = getTodayStrWIB();
         const todayDate = toDateOnly(todayStr);
 
@@ -228,13 +220,6 @@ const tapOut = async (req, res) => {
             });
         }
 
-        if (rfid.siswa.status_siswa !== "Active") {
-            return res.status(403).json({
-                success: false,
-                message: `Siswa ${rfid.siswa.nama} tidak dapat melakukan absensi karena berstatus ${rfid.siswa.status_siswa}`
-            });
-        }
-
         const todayStr = getTodayStrWIB();
         const todayDate = toDateOnly(todayStr);
         const hariIni = getHariFromDate(new Date());
@@ -276,13 +261,6 @@ const tapOut = async (req, res) => {
 
         // jika belum jam pulang, maka proses sebagai tap in
         if (currentTime < jamPulangToday) {
-
-            if (rfid.siswa.status_siswa !== "Active") {
-                return res.status(403).json({
-                    success: false,
-                    message: `Siswa ${rfid.siswa.nama} tidak dapat melakukan tap in karena berstatus ${rfid.siswa.status_siswa}`
-                });
-            }
 
             const existingAbsensi = await prisma.absensiSiswa.findFirst({
                 where: {

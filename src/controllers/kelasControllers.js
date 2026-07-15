@@ -96,8 +96,7 @@ const getKelasById = async (req, res) => {
                     },
                     select: {
                         id: true,
-                        nama: true,
-                        nomor_telepon: true
+                        nama: true
                     }
                 },
                 _count: {

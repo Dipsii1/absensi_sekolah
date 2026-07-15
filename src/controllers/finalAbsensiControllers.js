@@ -19,9 +19,9 @@ const buildDateWhere = ({ tanggal, tanggal_mulai, tanggal_akhir }) => {
 const formatFinalAbsensiRow = (siswa, record = null, fallbackTanggal = null) => ({
   siswa_id: siswa.id,
   nama: siswa.nama,
-  NISN: siswa.NISN,
-  NIPD: siswa.NIPD,
-  NIK: siswa.NIK,
+  nisn: siswa.nisn,
+  nipd: siswa.nipd,
+  nik: siswa.nik,
   kelas_id: siswa.kelas?.id ?? null,
   kelas: siswa.kelas
     ? {

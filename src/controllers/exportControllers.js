@@ -176,7 +176,7 @@ function buildKelasSheet(ws, opts) {
         setFixed(COL_A, si + 1);
         setFixed(COL_B, siswa.NIPD ?? siswa.nipd ?? "");
         setFixed(COL_C, siswa.nama ?? "", "left");
-        setFixed(COL_D, siswa.gender ?? siswa.jk ?? "");
+        setFixed(COL_D, siswa.jenis_kelamin ?? "");
 
         // Data per bulan
         const bulanData = dataPerSiswa.get(siswa.id) || new Map();
@@ -340,7 +340,7 @@ async function getKelasOrFail(kelas_id, res) {
             walas: { select: { nama: true, NIP: true } },
             siswa: {
                 where: { deleted_at: null },
-                select: { id: true, nama: true, NIPD: true, gender: true },
+                select: { id: true, nama: true, nipd: true, jenis_kelamin: true },
                 orderBy: { nama: "asc" },
             },
         },
@@ -616,7 +616,7 @@ const exportRekapSiswaExcel = async (req, res) => {
             include: {
                 siswa: {
                     select: {
-                        id: true, nama: true, NIPD: true, gender: true,
+                        id: true, nama: true, nipd: true, jenis_kelamin: true,
                         kelas: { include: { tahun: true, walas: { select: { nama: true, NIP: true } } } },
                     },
                 },
@@ -646,7 +646,7 @@ const exportRekapSiswaExcel = async (req, res) => {
             tahunAjaran: kelas?.tahun?.tahun_ajaran ?? "-",
             semester: semesterLabel,
             bulanList,
-            siswas: [{ id: siswa.id, nama: siswa.nama, NIPD: siswa.NIPD, gender: siswa.gender }],
+            siswas: [{ id: siswa.id, nama: siswa.nama, nipd: siswa.nipd, jenis_kelamin: siswa.jenis_kelamin }],
             dataPerSiswa: buildDataMap(records),
             jumlahHariEfektif: records.length,
             waliNama: kelas?.walas?.nama ?? "",

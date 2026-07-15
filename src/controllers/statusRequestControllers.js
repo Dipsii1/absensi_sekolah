@@ -248,5 +248,5 @@ module.exports = {
     createRequest, 
     getPendingRequests, 
     respondRequest, 
-    autoApproveExpired 
+    autoApproveExpired,
 };

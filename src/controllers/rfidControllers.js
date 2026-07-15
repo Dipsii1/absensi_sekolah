@@ -609,20 +609,20 @@ const importRFID = async (req, res) => {
 
             // Cari siswa: coba NISN dulu, fallback ke NIK jika ada
             let siswa = await prisma.siswa.findFirst({
-                where: { NISN: nisn, deleted_at: null }
+                where: { nisn: nisn, deleted_at: null }
             });
 
             // Fallback: coba NISN tanpa leading zero (jika database simpan tanpa padding)
             if (!siswa) {
                 siswa = await prisma.siswa.findFirst({
-                    where: { NISN: String(parseInt(nisn, 10)), deleted_at: null }
+                    where: { nisn: String(parseInt(nisn, 10)), deleted_at: null }
                 });
             }
 
             // Fallback: coba NIK jika ada di model siswa
             if (!siswa && nik && nik !== "-") {
                 siswa = await prisma.siswa.findFirst({
-                    where: { NIK: nik, deleted_at: null }
+                    where: { nik: nik, deleted_at: null }
                 });
             }
 

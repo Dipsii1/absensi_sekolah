@@ -104,16 +104,16 @@ model UserRole {
 }
 
 model Siswa {
-  id            String      @id @default(uuid()) @db.Uuid
-  NISN          String      @unique @db.VarChar(20)
-  NIPD          String      @unique @db.VarChar(20)
-  NIK           String      @unique @db.VarChar(20)
-  nama          String      @db.VarChar(255)
-  alamat        String      @db.Text
-  gender        Gender
-  status_siswa  StatusSiswa @default(Active)
-  tanggal_lahir DateTime    @db.Date
-  nomor_telepon String      @db.VarChar(15)
+  id            String   @id @default(uuid()) @db.Uuid
+  nama          String   @db.VarChar(150)
+  nisn          String   @unique @db.VarChar(20)
+  nipd          String?  @unique @db.VarChar(20)
+  nik           String   @unique @db.VarChar(20)
+  tempat_lahir  String   @db.VarChar(100)
+  tgl_lahir     DateTime @db.Date
+  jenis_kelamin String   @db.VarChar(1)
+  agama         String   @db.VarChar(50)
+  jurusan       String   @db.VarChar(100) 
 
   orangtua_id Int?
   kelas_id    Int?

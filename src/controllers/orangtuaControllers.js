@@ -83,7 +83,6 @@ const getOrangTuaById = async (req, res) => {
                         id: true,
                         nama: true,
                         alamat: true,
-                        nomor_telepon: true,
                         kelas: {
                             select: {
                                 kelas: true,
