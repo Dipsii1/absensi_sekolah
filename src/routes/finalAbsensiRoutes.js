@@ -4,7 +4,7 @@ const router = express.Router();
 const finalAbsensi = require("../controllers/finalAbsensiControllers");
 const { verifyToken, checkRole, requirePokja } = require("../middleware/auth");
 
-router.use(verifyToken, checkRole("KESISWAAN"), requirePokja);
+router.use(verifyToken);
 
 // Filter metadata untuk halaman export Pokja
 router.get("/filters", finalAbsensi.getFinalAbsensiFilters);
@@ -20,5 +20,7 @@ router.post("/kelas/:kelas_id", finalAbsensi.finalisasiKelas);
 
 // Finalisasi semua kelas aktif
 router.post("/semua-kelas", finalAbsensi.finalisasiSemuaKelas);
+
+router.post("/all", checkRole("ADMIN"), finalAbsensi.finalisasiSemuaSiswa);
 
 module.exports = router;

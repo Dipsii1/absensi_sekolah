@@ -25,12 +25,12 @@ const formatFinalAbsensiRow = (siswa, record = null, fallbackTanggal = null) => 
   kelas_id: siswa.kelas?.id ?? null,
   kelas: siswa.kelas
     ? {
-        id: siswa.kelas.id,
-        kelas: siswa.kelas.kelas,
-        jurusan: siswa.kelas.jurusan,
-        tahun_ajaran_id: siswa.kelas.tahun_ajaran_id,
-        tahun: siswa.kelas.tahun,
-      }
+      id: siswa.kelas.id,
+      kelas: siswa.kelas.kelas,
+      jurusan: siswa.kelas.jurusan,
+      tahun_ajaran_id: siswa.kelas.tahun_ajaran_id,
+      tahun: siswa.kelas.tahun,
+    }
     : null,
   tanggal: record?.tanggal ? record.tanggal.toISOString().slice(0, 10) : fallbackTanggal,
   status_final: record?.status_final ?? null,
@@ -360,14 +360,14 @@ const finalisasiSiswa = async (req, res) => {
       success: true,
       message: "Final absensi siswa berhasil diproses",
       data: {
-        siswa_id:     record.siswa_id,
-        tanggal:      formatDate(record.tanggal),
+        siswa_id: record.siswa_id,
+        tanggal: formatDate(record.tanggal),
         status_final: record.status_final,
-        total_hadir:  record.total_hadir,
-        total_izin:   record.total_izin,
-        total_sakit:  record.total_sakit,
-        total_alpha:  record.total_alpha,
-        total_mapel:  record.total_mapel,
+        total_hadir: record.total_hadir,
+        total_izin: record.total_izin,
+        total_sakit: record.total_sakit,
+        total_alpha: record.total_alpha,
+        total_mapel: record.total_mapel,
         finalized_at: formatDateTime(record.finalized_at),
       },
     });
@@ -430,13 +430,121 @@ const finalisasiSemuaKelas = async (req, res) => {
       success: true,
       message: "Finalisasi semua kelas aktif selesai",
       data: {
-        tanggal:      formatDate(parseTanggal(tanggal)),
-        total_kelas:  hasil.length,
-        rekap_kelas:  hasil,
+        tanggal: formatDate(parseTanggal(tanggal)),
+        total_kelas: hasil.length,
+        rekap_kelas: hasil,
       },
     });
   } catch (error) {
     console.error("[Controller] finalisasiSemuaKelas:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Terjadi kesalahan pada server",
+      error: error.message,
+    });
+  }
+};
+
+// finalisasi semua siswa yang sudah tap in (Admin)
+const finalisasiSemuaSiswa = async (req, res) => {
+  try {
+    const { tanggal } = req.body;
+
+    if (!tanggal) {
+      return res.status(400).json({ success: false, message: "tanggal wajib diisi" });
+    }
+
+    const tanggalParsed = parseTanggal(tanggal);
+
+    // Ambil semua siswa_id yang sudah tap in pada tanggal ini
+    const siswaTapIn = await prisma.absensiSiswa.groupBy({
+      by: ["siswa_id"],
+      where: {
+        tanggal: tanggalParsed,
+        deleted_at: null,
+      },
+    });
+
+    if (siswaTapIn.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "Tidak ada siswa yang tap in pada tanggal tersebut",
+        data: {
+          tanggal: formatDate(tanggalParsed),
+          total_siswa: 0,
+          berhasil: 0,
+          gagal: 0,
+          detail_gagal: [],
+        },
+      });
+    }
+
+    const siswaIds = siswaTapIn.map((item) => item.siswa_id);
+
+    // Ambil kelas_id masing-masing siswa
+    const siswaList = await prisma.siswa.findMany({
+      where: {
+        id: { in: siswaIds },
+        deleted_at: null,
+      },
+      select: {
+        id: true,
+        kelas_id: true,
+      },
+    });
+
+    let berhasil = 0;
+    let gagal = 0;
+    const detailGagal = [];
+
+    for (const siswa of siswaList) {
+      if (!siswa.kelas_id) {
+        gagal++;
+        detailGagal.push({
+          siswa_id: siswa.id,
+          alasan: "Siswa tidak memiliki kelas_id",
+        });
+        continue;
+      }
+
+      try {
+        const record = await simpanFinalAbsensi(
+          siswa.id,
+          siswa.kelas_id,
+          tanggalParsed
+        );
+
+        if (record) {
+          berhasil++;
+        } else {
+          gagal++;
+          detailGagal.push({
+            siswa_id: siswa.id,
+            alasan: "Tidak ada data absensi untuk siswa pada tanggal tersebut",
+          });
+        }
+      } catch (err) {
+        gagal++;
+        detailGagal.push({
+          siswa_id: siswa.id,
+          alasan: err.message,
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Finalisasi semua siswa yang sudah tap in selesai",
+      data: {
+        tanggal: formatDate(tanggalParsed),
+        total_siswa: siswaIds.length,
+        berhasil,
+        gagal,
+        detail_gagal: detailGagal,
+      },
+    });
+  } catch (error) {
+    console.error("[Controller] finalisasiSemuaSiswa:", error);
     return res.status(500).json({
       success: false,
       message: "Terjadi kesalahan pada server",
@@ -451,4 +559,5 @@ module.exports = {
   finalisasiSiswa,
   finalisasiKelas,
   finalisasiSemuaKelas,
+  finalisasiSemuaSiswa,
 };

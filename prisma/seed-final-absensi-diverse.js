@@ -17,7 +17,7 @@ async function main() {
 
   // Get active students with their kelas
   const siswas = await prisma.siswa.findMany({
-    where: { status_siswa: "Active", deleted_at: null },
+    where: { status_siswa:"Active", deleted_at: null },
     include: { kelas: true },
     orderBy: [{ kelas_id: "asc" }, { nama: "asc" }],
   });
