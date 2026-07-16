@@ -398,11 +398,11 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 | Method | Endpoint | Auth | Role | Deskripsi |
 |--------|----------|------|------|-----------|
-| `GET` | `/final-absensi/filters` | 🔒 | `KESISWAAN` + Pokja | Ambil filter metadata untuk export |
-| `GET` | `/final-absensi` | 🔒 | `KESISWAAN` + Pokja | Ambil semua data final absensi |
-| `POST` | `/final-absensi/siswa` | 🔒 | `KESISWAAN` + Pokja | Finalisasi 1 siswa secara manual |
-| `POST` | `/final-absensi/kelas/:kelas_id` | 🔒 | `KESISWAAN` + Pokja | Finalisasi seluruh siswa dalam 1 kelas |
-| `POST` | `/final-absensi/semua-kelas` | 🔒 | `KESISWAAN` + Pokja | Finalisasi semua kelas aktif |
+| `GET` | `/final-absensi/filters` | 🔒 | Ambil filter metadata untuk export |
+| `GET` | `/final-absensi` | 🔒 | Ambil semua data final absensi |
+| `POST` | `/final-absensi/siswa` | 🔒 | Finalisasi 1 siswa secara manual |
+| `POST` | `/final-absensi/kelas/:kelas_id` | 🔒 | Finalisasi seluruh siswa dalam 1 kelas |
+| `POST` | `/final-absensi/semua-kelas` | 🔒 | Finalisasi semua kelas aktif |
 | `POST` | `/final-absensi/all` | 🔒 | `ADMIN` | Finalisasi seluruh siswa yang sudah tap-in pada tanggal tertentu |
 
 ---
