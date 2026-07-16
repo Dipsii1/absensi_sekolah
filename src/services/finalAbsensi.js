@@ -1,5 +1,5 @@
 const prisma = require("../config/prisma");
-const {hitungStatusFinal} = require("../helper/helperFinalAbsensi")
+const { hitungStatusFinal } = require("../helper/helperFinalAbsensi")
 
 // Core: Hitung Final Absensi untuk 1 Siswa di 1 Hari
 const hitungFinalAbsensiSiswa = async (siswa_id, tanggal) => {
@@ -17,9 +17,27 @@ const hitungFinalAbsensiSiswa = async (siswa_id, tanggal) => {
         },
     });
 
-    if (!absensiHarian || absensiHarian.detail.length === 0) return null;
+    if (!absensiHarian) return null;
 
     const counts = { Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
+
+    // Kasus tanpa detail mapel: hari tanpa jadwal (pulang cepat, event sekolah),
+    // atau belum ada guru yang input absensi. Fallback ke status_harian.
+    if (absensiHarian.detail.length === 0) {
+        if (!absensiHarian.status_harian) return null;  // benar-benar tidak ada data sama sekali
+        if (counts[absensiHarian.status_harian] === undefined) return null;
+
+        counts[absensiHarian.status_harian] = 1;
+
+        return {
+            siswa_id,
+            tanggal,
+            status_final: hitungStatusFinal(counts),
+            counts,
+            total_mapel: 0,
+        };
+    }
+
     for (const detail of absensiHarian.detail) {
         if (counts[detail.status] !== undefined) counts[detail.status]++;
     }

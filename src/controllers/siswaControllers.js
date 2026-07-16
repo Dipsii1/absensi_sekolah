@@ -38,7 +38,7 @@ const getAllSiswa = async (req, res) => {
                         select: {
                             id: true,
                             nama_orangtua: true,
-                            nomor_telepon: true
+                            
                         }
                     },
                     kelas: {
@@ -106,7 +106,7 @@ const getSiswaById = async (req, res) => {
                     select: {
                         id: true,
                         nama_orangtua: true,
-                        nomor_telepon: true
+                        
                     }
                 },
                 kelas: {
@@ -294,7 +294,7 @@ const createSiswa = async (req, res) => {
             },
             include: {
                 kelas: { select: { kelas: true, jurusan: true } },
-                orang_tua: { select: { nama_orangtua: true, nomor_telepon: true } }
+                orang_tua: { select: { nama_orangtua: true,  } }
             }
         });
 
@@ -481,7 +481,7 @@ const updateSiswa = async (req, res) => {
                 },
                 include: {
                     kelas: { select: { kelas: true, jurusan: true } },
-                    orang_tua: { select: { nama_orangtua: true, nomor_telepon: true } }
+                    orang_tua: { select: { nama_orangtua: true,  } }
                 }
             });
         });

@@ -740,8 +740,10 @@ const getLaporanHarian = async (req, res) => {
             });
         }
 
+        const tanggalDate = toDateOnly(tanggal);
+
         const whereCondition = {
-            tanggal: toDateOnly(tanggal),
+            tanggal: tanggalDate,
             deleted_at: null
         };
 
@@ -757,6 +759,7 @@ const getLaporanHarian = async (req, res) => {
                 siswa: {
                     select: {
                         nama: true,
+                        nisn: true,
                         kelas: {
                             select: {
                                 kelas: true,
@@ -769,22 +772,45 @@ const getLaporanHarian = async (req, res) => {
             orderBy: { tap_in: 'asc' }
         });
 
+        // Hitung jumlah siswa yang sudah difinalisasi untuk tanggal ini
+        const siswaIds = absensiList.map((a) => a.siswa_id);
+        const finalizedRecords = siswaIds.length
+            ? await prisma.finalAbsensi.findMany({
+                where: {
+                    siswa_id: { in: siswaIds },
+                    tanggal: tanggalDate,
+                    is_finalized: true,
+                    deleted_at: null
+                },
+                select: { siswa_id: true }
+            })
+            : [];
+        const finalizedSet = new Set(finalizedRecords.map((f) => f.siswa_id));
+
         const summary = {
             total: absensiList.length,
             Tepat_Waktu: absensiList.filter(a => a.status_tapin === 'Tepat_Waktu').length,
             Terlambat: absensiList.filter(a => a.status_tapin === 'Terlambat').length,
             belum_tap_in: absensiList.filter(a => !a.tap_in).length,
-            belum_tap_out: absensiList.filter(a => a.tap_in && !a.tap_out).length
+            belum_tap_out: absensiList.filter(a => a.tap_in && !a.tap_out).length,
+            sudah_difinalisasi: finalizedSet.size
         };
 
         const formattedData = absensiList.map(absensi => ({
             id: absensi.id,
+            siswa_id: absensi.siswa_id,
             siswa: absensi.siswa,
+            nama: absensi.siswa?.nama ?? null,
+            nama_kelas: absensi.siswa?.kelas
+                ? `${absensi.siswa.kelas.kelas} ${absensi.siswa.kelas.jurusan}`
+                : null,
             tanggal: formatDate(absensi.tanggal),
             tap_in: formatTime(absensi.tap_in),
             tap_out: formatTime(absensi.tap_out),
+            jam_tap_in: formatTime(absensi.tap_in),
             status_tapin: absensi.status_tapin,
-            status_harian: absensi.status_harian
+            status_harian: absensi.status_harian,
+            is_finalized: finalizedSet.has(absensi.siswa_id)
         }));
 
         return res.status(200).json({
