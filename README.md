@@ -109,9 +109,18 @@ absensi_sekolah/
 │   ├── services/               # Service layer
 │   │   ├── telegramServices.js
 │   │   └── finalAbsensi.js
-│   └── cron/                   # Cron job scheduler
-│       ├── tahunAjaran.js
-│       └── autoApproveStatus.js
+│   ├── cron/                   # Cron job scheduler
+│   │   ├── tahunAjaran.js
+│   │   └── autoApproveStatus.js
+│   ├── helper/                  # Fungsi bantu (utils)
+│   │   ├── autoCreateTahunAjaran.js
+│   │   ├── dateUtils.js
+│   │   ├── daysUtils.js
+│   │   ├── helperFinalAbsensi.js
+│   │   ├── reqStatusAbsensi.js
+│   │   └── indexUtils.js
+│   └── config/                  # Konfigurasi (Prisma client, dll)
+│       └── prisma.js
 ├── views/                      # Template Jade
 ├── app.js                      # Konfigurasi Express
 ├── prisma.config.ts
@@ -394,6 +403,7 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `POST` | `/final-absensi/siswa` | 🔒 | `KESISWAAN` + Pokja | Finalisasi 1 siswa secara manual |
 | `POST` | `/final-absensi/kelas/:kelas_id` | 🔒 | `KESISWAAN` + Pokja | Finalisasi seluruh siswa dalam 1 kelas |
 | `POST` | `/final-absensi/semua-kelas` | 🔒 | `KESISWAAN` + Pokja | Finalisasi semua kelas aktif |
+| `POST` | `/final-absensi/all` | 🔒 | `ADMIN` | Finalisasi seluruh siswa yang sudah tap-in pada tanggal tertentu |
 
 ---
 
