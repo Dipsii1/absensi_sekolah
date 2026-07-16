@@ -128,7 +128,7 @@ const getPendingRequests = async (req, res) => {
         const permintaan = await prisma.permintaanStatusAbsensi.findMany({
             where,
             include: {
-                siswa: { select: { id: true, nama: true, NISN: true, NIK: true } },
+                siswa: { select: { id: true, nama: true, nisn: true, nik: true, nipd:true } },
                 guru:  { select: { id: true, nama: true } },
                 kelas: { select: { id: true, kelas: true, jurusan: true } }
             },

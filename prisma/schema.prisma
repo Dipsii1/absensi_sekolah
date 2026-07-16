@@ -114,6 +114,7 @@ model Siswa {
   jenis_kelamin String   @db.VarChar(1)
   agama         String   @db.VarChar(50)
   jurusan       String   @db.VarChar(100) 
+  nomor_telepon String?  @db.VarChar(15)
 
   orangtua_id Int?
   kelas_id    Int?

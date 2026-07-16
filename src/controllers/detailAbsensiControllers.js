@@ -1692,8 +1692,7 @@ const pratinjauWalas = async (req, res) => {
                     select: {
                         id: true,
                         nama: true,
-                        NISN: true,
-                        nomor_telepon: true,
+                        nisn: true,
                         rfid: {
                             where: {
                                 is_active: true,
@@ -1758,8 +1757,7 @@ const pratinjauWalas = async (req, res) => {
             return {
                 siswa_id: siswa.id,
                 nama: siswa.nama,
-                NISN: siswa.NISN ?? null,
-                nomor_telepon: siswa.nomor_telepon ?? null,
+                nisn: siswa.nisn ?? null,
                 punya_rfid,
                 tap_in: absensi ? formatTime(absensi.tap_in) : null,
                 tap_out: absensi ? formatTime(absensi.tap_out) : null,

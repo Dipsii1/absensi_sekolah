@@ -9,7 +9,7 @@ const {
     exportRekapSiswaExcel,
 } = require("../controllers/exportControllers");
 
-router.use(verifyToken, checkRole("KESISWAAN"), requirePokja);
+router.use(verifyToken);
 
 // ── Rekap Siswa ────────────────────────────────────────────────
 // GET /api/export/rekap/siswa/excel?siswa_id=...&tanggal_mulai=...&tanggal_akhir=...

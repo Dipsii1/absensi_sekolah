@@ -63,9 +63,9 @@ const buildSiswaWhere = ({ kelas_id, jurusan, tahun_ajaran_id, search }) => {
   if (search) {
     siswaWhere.OR = [
       { nama: { contains: search, mode: "insensitive" } },
-      { NISN: { contains: search, mode: "insensitive" } },
-      { NIPD: { contains: search, mode: "insensitive" } },
-      { NIK: { contains: search, mode: "insensitive" } },
+      { nisn: { contains: search, mode: "insensitive" } },
+      { nipd: { contains: search, mode: "insensitive" } },
+      { nik: { contains: search, mode: "insensitive" } },
     ];
   }
 
