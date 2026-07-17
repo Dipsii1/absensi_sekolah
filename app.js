@@ -32,6 +32,8 @@ var exportRoutes = require('./src/routes/exportRoutes');
 // cron job
 require("./src/cron/tahunAjaran");
 require("./src/cron/autoApproveStatus");
+require("./src/cron/auto-tapOut");
+require("./src/cron/autoFinalAbsensi");
 
 var app = express();
 
