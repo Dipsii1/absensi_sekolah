@@ -16,7 +16,7 @@ cron.schedule("0 20 * * 1-6", async () => {
     }
 
     try {
-        const tahunAktif = await prisma.tahunAjaran.findFirst({
+        const tahunAktif = await prisma.tahun.findFirst({
             where: { is_active: true, deleted_at: null }
         });
 

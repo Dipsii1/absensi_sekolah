@@ -4,14 +4,14 @@ const { getTodayStrWIB } = require("../helper/dateUtils");
 const prisma = require("../config/prisma");
 
 // Jalankan setiap hari jam 20:05 WIB (Senin-Sabtu)
-cron.schedule("5 20 * * 1-6", async () => {
+cron.schedule("0 20 * * 1-6", async () => {
     const todayStr = getTodayStrWIB();
 
     console.log(`[CRON AUTO-FINAL] Memulai finalisasi otomatis - ${todayStr}`);
 
     try {
         // Cek apakah ada tahun ajaran aktif
-        const tahunAktif = await prisma.tahunAjaran.findFirst({
+        const tahunAktif = await prisma.tahun.findFirst({
             where: { is_active: true, deleted_at: null }
         });
 
