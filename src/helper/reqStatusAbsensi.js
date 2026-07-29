@@ -1,5 +1,6 @@
 const prisma = require("../config/prisma");
 const { parseTanggal } = require("./dateUtils");
+const { simpanFinalAbsensi } = require("../services/finalAbsensi");
 
 const applyStatusChange = async (siswa_id, kelas_id, tanggal, walas_id, status_baru, keterangan) => {
     const walasId = parseInt(walas_id);
@@ -59,6 +60,11 @@ const applyStatusChange = async (siswa_id, kelas_id, tanggal, walas_id, status_b
         where: { id: absensi.id },
         data: { status_harian: status_baru }
     });
+
+    // Update FinalAbsensi agar dashboard/export tersinkronisasi
+    if (kelas_id) {
+        await simpanFinalAbsensi(siswa_id, parseInt(kelas_id), targetDate);
+    }
 };
 
 module.exports = { applyStatusChange };

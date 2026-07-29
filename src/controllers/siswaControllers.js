@@ -38,7 +38,7 @@ const getAllSiswa = async (req, res) => {
                         select: {
                             id: true,
                             nama_orangtua: true,
-                            
+                            nomor_telepon: true
                         }
                     },
                     kelas: {
@@ -106,7 +106,7 @@ const getSiswaById = async (req, res) => {
                     select: {
                         id: true,
                         nama_orangtua: true,
-                        
+                        nomor_telepon: true
                     }
                 },
                 kelas: {

@@ -27,6 +27,11 @@ const getAllRfid = async (req, res) => {
                         select: {
                             id: true,
                             nama: true,
+                            nisn: true,
+                            jenis_kelamin: true,
+                            tempat_lahir: true,
+                            tgl_lahir: true,
+                            agama: true,
                             kelas: {
                                 select: {
                                     kelas: true,

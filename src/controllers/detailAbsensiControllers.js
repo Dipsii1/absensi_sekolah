@@ -1,6 +1,7 @@
 const prisma = require("../config/prisma");
 const { StatusAbsensi } = require("@prisma/client");
 const { formatDate, formatTime, formatDateTime, validateHari, getHariFromDate, parseTanggal, getTodayWIB, getWeekNumber } = require("../helper/indexUtils");
+const { simpanFinalAbsensi } = require("../services/finalAbsensi");
 
 const NAMA_BULAN = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -15,7 +16,7 @@ const getActiveJadwalGuru = async (guru_id) => {
     const jamWIB = new Date(`1970-01-01T${jamWIBStr}Z`);
 
     return prisma.jadwal.findFirst({
-        where: {
+        where: {    
             guru_id,
             hari,
             jam_mulai: { lte: jamWIB },
@@ -242,7 +243,7 @@ const updateStatusAbsensiManual = async (req, res) => {
                 absensi: {
                     include: {
                         siswa: {
-                            select: { id: true, nama: true }
+                            select: { id: true, nama: true, kelas_id: true }
                         }
                     }
                 },
@@ -257,6 +258,10 @@ const updateStatusAbsensiManual = async (req, res) => {
                 where: { id: detailAbsensi.absensi_id },
                 data: { status_harian: status }
             });
+        }
+
+        if (updated.absensi.siswa.kelas_id) {
+            await simpanFinalAbsensi(updated.absensi.siswa.id, updated.absensi.siswa.kelas_id, updated.absensi.tanggal);
         }
 
         return res.status(200).json({
@@ -1693,6 +1698,9 @@ const pratinjauWalas = async (req, res) => {
                         id: true,
                         nama: true,
                         nisn: true,
+                        orang_tua: {
+                            select: { nomor_telepon: true }
+                        },
                         rfid: {
                             where: {
                                 is_active: true,
@@ -1758,6 +1766,7 @@ const pratinjauWalas = async (req, res) => {
                 siswa_id: siswa.id,
                 nama: siswa.nama,
                 nisn: siswa.nisn ?? null,
+                nomor_telepon: siswa.orang_tua?.nomor_telepon ?? null,
                 punya_rfid,
                 tap_in: absensi ? formatTime(absensi.tap_in) : null,
                 tap_out: absensi ? formatTime(absensi.tap_out) : null,
