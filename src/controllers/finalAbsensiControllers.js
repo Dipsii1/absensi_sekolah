@@ -22,6 +22,7 @@ const formatFinalAbsensiRow = (siswa, record = null, fallbackTanggal = null) => 
   nisn: siswa.nisn,
   nipd: siswa.nipd,
   nik: siswa.nik,
+  jenis_kelamin: siswa.jenis_kelamin,
   kelas_id: siswa.kelas?.id ?? null,
   kelas: siswa.kelas
     ? {

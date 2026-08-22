@@ -461,12 +461,12 @@ const importJadwal = async (req, res) => {
         const sheet = workbook.Sheets[sheetName];
 
         const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-        const headerRowIdx = rawRows.findIndex(row => row[0] === "HARI");
+        const headerRowIdx = rawRows.findIndex(row => row.includes("HARI"));
 
         if (headerRowIdx === -1) {
             return res.status(400).json({
                 success: false,
-                message: "Header kolom tidak ditemukan. Pastikan kolom pertama bernama 'HARI'",
+                message: "Header kolom tidak ditemukan. Pastikan terdapat kolom bernama 'HARI'",
             });
         }
 
@@ -499,6 +499,10 @@ const importJadwal = async (req, res) => {
             const row = rows[i];
             const rowNum = i + 2;
 
+            // Check if ID is provided for update
+            const idRaw = row["ID"] !== undefined ? String(row["ID"]).trim() : "";
+            const id = idRaw !== "" && !isNaN(parseInt(idRaw)) ? parseInt(idRaw) : null;
+
             // Normalize hari per baris
             const hariRaw = String(row["HARI"] || "").trim();
             const hari = hariRaw.charAt(0).toUpperCase() + hariRaw.slice(1).toLowerCase();
@@ -511,6 +515,18 @@ const importJadwal = async (req, res) => {
             const jamSelesai = String(row["JAM_SELESAI"] || "").trim();
 
             if (!hari && !kelasStr && !namaMapel && !namaGuru) continue;
+
+            // If ID is provided, check if the schedule exists
+            if (id !== null) {
+                const existing = await prisma.jadwal.findFirst({
+                    where: { id, deleted_at: null }
+                });
+                if (!existing) {
+                    errors.push({ row: rowNum, pesan: `Jadwal dengan ID "${id}" tidak ditemukan di sistem` });
+                    skipped++;
+                    continue;
+                }
+            }
 
             if (!VALID_HARI.includes(hari)) {
                 errors.push({ row: rowNum, pesan: `Hari tidak valid: "${hari}"` });
@@ -589,7 +605,13 @@ const importJadwal = async (req, res) => {
             ];
 
             const conflictKelas = await prisma.jadwal.findFirst({
-                where: { kelas_id: kelasRecord.id, hari, deleted_at: null, OR: overlapCondition }
+                where: {
+                    kelas_id: kelasRecord.id,
+                    hari,
+                    deleted_at: null,
+                    ...(id !== null ? { NOT: { id } } : {}),
+                    OR: overlapCondition
+                }
             });
             if (conflictKelas) {
                 errors.push({ row: rowNum, pesan: `Jadwal bentrok dengan jadwal kelas ${kelasStr} ${jurusan} pada hari ${hari} jam ${jamMulai}–${jamSelesai}` });
@@ -598,7 +620,13 @@ const importJadwal = async (req, res) => {
             }
 
             const conflictGuru = await prisma.jadwal.findFirst({
-                where: { guru_id: guruRecord.id, hari, deleted_at: null, OR: overlapCondition }
+                where: {
+                    guru_id: guruRecord.id,
+                    hari,
+                    deleted_at: null,
+                    ...(id !== null ? { NOT: { id } } : {}),
+                    OR: overlapCondition
+                }
             });
             if (conflictGuru) {
                 errors.push({ row: rowNum, pesan: `Guru "${namaGuru}" sudah memiliki jadwal pada hari ${hari} jam ${jamMulai}–${jamSelesai}` });
@@ -606,23 +634,38 @@ const importJadwal = async (req, res) => {
                 continue;
             }
 
-            await prisma.jadwal.create({
-                data: {
-                    hari,
-                    kelas_id: kelasRecord.id,
-                    mapel_id: mapelRecord.id,
-                    guru_id: guruRecord.id,
-                    jam_mulai: jamMulaiDate,
-                    jam_selesai: jamSelesaiDate
-                }
-            });
+            if (id !== null) {
+                await prisma.jadwal.update({
+                    where: { id },
+                    data: {
+                        hari,
+                        kelas_id: kelasRecord.id,
+                        mapel_id: mapelRecord.id,
+                        guru_id: guruRecord.id,
+                        jam_mulai: jamMulaiDate,
+                        jam_selesai: jamSelesaiDate,
+                        updated_at: new Date()
+                    }
+                });
+            } else {
+                await prisma.jadwal.create({
+                    data: {
+                        hari,
+                        kelas_id: kelasRecord.id,
+                        mapel_id: mapelRecord.id,
+                        guru_id: guruRecord.id,
+                        jam_mulai: jamMulaiDate,
+                        jam_selesai: jamSelesaiDate
+                    }
+                });
+            }
 
             created++;
         }
 
         return res.status(200).json({
             success: true,
-            message: `Import selesai: ${created} jadwal ditambahkan, ${skipped} dilewati`,
+            message: `Import selesai: ${created} jadwal diproses (tambah/update), ${skipped} dilewati`,
             data: { created, skipped, errors }
         });
 
