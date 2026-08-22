@@ -48,10 +48,15 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(cors({
-  origin: 'http://localhost:4321',
-  credentials: true
+  origin: [
+    'http://10.1.128.31',      // IP VPS Anda (Host Utama)
+    'http://10.1.128.31:4321', // IP VPS dengan Port Frontend Astro
+    'http://localhost:4321'    // Tetap pasang ini untuk testing di laptop jika perlu
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
-
 
 // routes
 app.use('/', indexRouter);
