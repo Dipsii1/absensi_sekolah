@@ -6,9 +6,6 @@ var logger = require('morgan');
 var cors = require('cors');
 require('dotenv').config();
 
-// Inisialisasi layanan Telegram
-require('./src/services/telegramServices');
-
 var indexRouter = require('./src/routes/index');
 var tahunRoutes = require('./src/routes/tahunRoutes');
 var mapelRoutes = require('./src/routes/mapelRoutes');
@@ -28,18 +25,11 @@ var finalAbsensi = require ('./src/routes/finalAbsensiRoutes');
 var rekapRoutes = require('./src/routes/rekapRoutes');
 var exportRoutes = require('./src/routes/exportRoutes');
 
-
-// cron job
-require("./src/cron/tahunAjaran");
-require("./src/cron/autoApproveStatus");
-require("./src/cron/auto-tapOut");
-require("./src/cron/autoFinalAbsensi");
-
 var app = express();
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+app.set('view engine', 'pug');
 
 app.use(logger('dev'));
 app.use(express.json());
@@ -48,11 +38,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(cors({
-  origin: [
-    'http://10.1.128.31',      // IP VPS Anda (Host Utama)
-    'http://10.1.128.31:4321', // IP VPS dengan Port Frontend Astro
-    'http://localhost:4321'    // Tetap pasang ini untuk testing di laptop jika perlu
-  ],
+  origin: process.env.URL_FRONTEND?.trim() || 'http://localhost:4321',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
