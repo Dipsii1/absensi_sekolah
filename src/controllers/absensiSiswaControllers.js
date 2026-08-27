@@ -1,171 +1,56 @@
 const prisma = require("../config/prisma");
 const { sendTapInNotification, sendTapOutNotification } = require("../services/telegramServices");
 const { formatDate, formatTime, formatDateTime, getHariFromDate, getTodayStrWIB, toDateOnly, getTanggalRangeWIB } = require("../helper/indexUtils");
+const { addTapInJob } = require("../queues/tapInQueue");
+const { addTapOutJob } = require("../queues/tapOutQueue");
 
-// Tap In 
+const validateRfid = async (uid_rfid) => {
+    if (!uid_rfid) return { error: { status: 400, message: "UID RFID harus terisi" } };
+
+    const rfid = await prisma.rFID.findFirst({
+        where: { uid_rfid, is_active: true, deleted_at: null },
+        include: { siswa: { include: { kelas: true, orang_tua: true } } }
+    });
+
+    if (!rfid) return { error: { status: 404, message: "RFID tidak ditemukan atau tidak aktif" } };
+    if (!rfid.siswa.kelas) return { error: { status: 400, message: "Siswa tidak memiliki kelas" } };
+
+    return { rfid };
+};
+
+// Tap In
 const tapIn = async (req, res) => {
     try {
         const { uid_rfid } = req.body;
+        const { rfid, error } = await validateRfid(uid_rfid);
+        if (error) return res.status(error.status).json({ success: false, message: error.message });
 
-        if (!uid_rfid) {
-            return res.status(400).json({
-                success: false,
-                message: "UID RFID harus terisi"
-            });
-        }
+        const receivedAt = new Date().toISOString();
 
-        const rfid = await prisma.rFID.findFirst({
-            where: {
-                uid_rfid,
-                is_active: true,
-                deleted_at: null
-            },
-            include: {
-                siswa: {
-                    include: {
-                        kelas: true,
-                        orang_tua: true
-                    }
-                }
-            }
-        });
-
-        if (!rfid) {
-            return res.status(404).json({
-                success: false,
-                message: "RFID tidak ditemukan atau tidak aktif"
-            });
-        }
-
-        if (!rfid.siswa.kelas) {
-            return res.status(400).json({
-                success: false,
-                message: "Siswa tidak memiliki kelas"
-            });
-        }
-        
-        const todayStr = getTodayStrWIB();
-        const todayDate = toDateOnly(todayStr);
-
-        const existingAbsensi = await prisma.absensiSiswa.findFirst({
-            where: {
-                siswa_id: rfid.siswa.id,
-                tanggal: todayDate,
-                tap_in: { not: null },
-                deleted_at: null
-            }
-        });
-
-        if (existingAbsensi) {
-            return res.status(409).json({
-                success: false,
-                message: "Siswa sudah melakukan tap in hari ini"
-            });
-        }
-
-        const hariIni = getHariFromDate(new Date());
-
-        if (hariIni === 'MINGGU') {
-            return res.status(400).json({
-                success: false,
-                message: "Tidak ada jadwal di hari Minggu"
-            });
-        }
-
-        const jadwalPertama = await prisma.jadwal.findFirst({
-            where: {
-                kelas_id: rfid.siswa.kelas_id,
-                hari: hariIni,
-                deleted_at: null
-            },
-            include: {
-                mata_pelajaran: true
-            },
-            orderBy: {
-                jam_mulai: 'asc'
-            }
-        });
-
-        if (!jadwalPertama) {
-            return res.status(404).json({
-                success: false,
-                message: `Tidak ada jadwal untuk kelas ${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan} di hari ${hariIni}`
-            });
-        }
-
-        const tapInTime = new Date();
-
-        const jamMulai = new Date(jadwalPertama.jam_mulai);
-        const jamMulaiToday = new Date();
-        jamMulaiToday.setHours(jamMulai.getHours(), jamMulai.getMinutes(), 0, 0);
-
-        const statusTapIn = tapInTime <= jamMulaiToday ? 'Tepat_Waktu' : 'Terlambat';
-
-        const absensi = await prisma.absensiSiswa.create({
-            data: {
-                siswa_id: rfid.siswa.id,
-                tanggal: todayDate,
-                tap_in: tapInTime,
-                rfid_id: rfid.id,
-                status_tapin: statusTapIn,
-                status_harian: 'Hadir'
-            },
-            include: {
-                siswa: {
-                    select: {
-                        nama: true,
-                        kelas: {
-                            select: {
-                                kelas: true,
-                                jurusan: true
-                            }
-                        }
-                    }
-                },
-                rfid: {
-                    select: {
-                        uid_rfid: true
-                    }
-                }
-            }
-        });
-
-        if (rfid.siswa.kelas && rfid.siswa.kelas.telegram_group_id) {
-            const notifData = {
+        await addTapInJob({
+            rfidId: rfid.id,
+            siswaId: rfid.siswa.id,
+            kelasId: rfid.siswa.kelas_id,
+            siswaData: {
                 nama: rfid.siswa.nama,
-                kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}`,
-                status_tapin: statusTapIn,
-                tap_in: formatTime(tapInTime),
-                tanggal: formatDate(todayDate),
-            };
-
-            sendTapInNotification(rfid.siswa.kelas.telegram_group_id, notifData)
-                .catch(error => {
-                    console.error('Failed to send Telegram notification:', error);
-                });
-        }
-
-        const formattedAbsensi = {
-            id: absensi.id,
-            siswa: absensi.siswa,
-            tanggal: formatDate(absensi.tanggal),
-            tap_in: formatTime(absensi.tap_in),
-            tap_out: formatTime(absensi.tap_out),
-            status_tapin: absensi.status_tapin,
-            rfid: absensi.rfid,
-            jadwal_info: {
-                hari: hariIni,
-                mata_pelajaran_pertama: jadwalPertama.mata_pelajaran.nama_mapel,
-                jam_mulai: formatTime(jadwalPertama.jam_mulai),
-                jam_selesai: formatTime(jadwalPertama.jam_selesai)
+                kelas: rfid.siswa.kelas ? {
+                    kelas: rfid.siswa.kelas.kelas,
+                    jurusan: rfid.siswa.kelas.jurusan,
+                    telegram_group_id: rfid.siswa.kelas.telegram_group_id
+                } : null
             },
-            created_at: formatDateTime(absensi.created_at)
-        };
+            receivedAt
+        });
 
-        return res.status(201).json({
+        return res.status(202).json({
             success: true,
-            message: `Tap in berhasil - ${statusTapIn}`,
-            data: formattedAbsensi
+            message: "Tap in diterima, sedang diproses",
+            data: {
+                uid_rfid,
+                nama: rfid.siswa.nama,
+                kelas: rfid.siswa.kelas ? `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}` : null,
+                received_at: receivedAt
+            }
         });
 
     } catch (error) {
@@ -178,286 +63,39 @@ const tapIn = async (req, res) => {
     }
 };
 
-// Tap Out 
+// Tap Out
 const tapOut = async (req, res) => {
     try {
         const { uid_rfid } = req.body;
+        const { rfid, error } = await validateRfid(uid_rfid);
+        if (error) return res.status(error.status).json({ success: false, message: error.message });
 
-        if (!uid_rfid) {
-            return res.status(400).json({
-                success: false,
-                message: "UID RFID harus terisi"
-            });
-        }
+        const receivedAt = new Date().toISOString();
 
-        const rfid = await prisma.rFID.findFirst({
-            where: {
-                uid_rfid,
-                is_active: true,
-                deleted_at: null
-            },
-            include: {
-                siswa: {
-                    include: {
-                        kelas: true,
-                        orang_tua: true
-                    }
-                }
-            }
-        });
-
-        if (!rfid) {
-            return res.status(404).json({
-                success: false,
-                message: "RFID tidak ditemukan atau tidak aktif"
-            });
-        }
-
-        if (!rfid.siswa.kelas) {
-            return res.status(400).json({
-                success: false,
-                message: "Siswa tidak memiliki kelas"
-            });
-        }
-
-        const todayStr = getTodayStrWIB();
-        const todayDate = toDateOnly(todayStr);
-        const hariIni = getHariFromDate(new Date());
-        const currentTime = new Date();
-
-        if (hariIni === 'MINGGU') {
-            return res.status(400).json({
-                success: false,
-                message: "Tidak ada jadwal di hari Minggu"
-            });
-        }
-
-        // Ambil jadwal terakhir hari ini untuk menentukan jam pulang
-        const jadwalTerakhir = await prisma.jadwal.findFirst({
-            where: {
-                kelas_id: rfid.siswa.kelas_id,
-                hari: hariIni,
-                deleted_at: null
-            },
-            include: {
-                mata_pelajaran: true
-            },
-            orderBy: {
-                jam_selesai: 'desc'
-            }
-        });
-
-        if (!jadwalTerakhir) {
-            return res.status(404).json({
-                success: false,
-                message: `Tidak ada jadwal untuk kelas ${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan} di hari ${hariIni}`
-            });
-        }
-
-        // Tentukan jam pulang dari jadwal terakhir
-        const jamSelesai = new Date(jadwalTerakhir.jam_selesai);
-        const jamPulangToday = new Date();
-        jamPulangToday.setHours(jamSelesai.getHours(), jamSelesai.getMinutes(), 0, 0);
-
-        // jika belum jam pulang, maka proses sebagai tap in
-        if (currentTime < jamPulangToday) {
-
-            const existingAbsensi = await prisma.absensiSiswa.findFirst({
-                where: {
-                    siswa_id: rfid.siswa.id,
-                    tanggal: todayDate,
-                    tap_in: { not: null },
-                    deleted_at: null
-                }
-            });
-
-            if (existingAbsensi) {
-                return res.status(409).json({
-                    success: false,
-                    message: "Siswa sudah melakukan tap in hari ini"
-                });
-            }
-
-            // Ambil jadwal pertama untuk menentukan status tap in
-            const jadwalPertama = await prisma.jadwal.findFirst({
-                where: {
-                    kelas_id: rfid.siswa.kelas_id,
-                    hari: hariIni,
-                    deleted_at: null
-                },
-                include: {
-                    mata_pelajaran: true
-                },
-                orderBy: {
-                    jam_mulai: 'asc'
-                }
-            });
-
-            const tapInTime = new Date();
-
-            const jamMulai = new Date(jadwalPertama.jam_mulai);
-            const jamMulaiToday = new Date();
-            jamMulaiToday.setHours(jamMulai.getHours(), jamMulai.getMinutes(), 0, 0);
-
-            const statusTapIn = tapInTime <= jamMulaiToday ? 'Tepat_Waktu' : 'Terlambat';
-
-            const absensi = await prisma.absensiSiswa.create({
-                data: {
-                    siswa_id: rfid.siswa.id,
-                    tanggal: todayDate,
-                    tap_in: tapInTime,
-                    rfid_id: rfid.id,
-                    status_tapin: statusTapIn,
-                    status_harian: 'Hadir'
-                },
-                include: {
-                    siswa: {
-                        select: {
-                            nama: true,
-                            kelas: {
-                                select: {
-                                    kelas: true,
-                                    jurusan: true
-                                }
-                            }
-                        }
-                    },
-                    rfid: {
-                        select: {
-                            uid_rfid: true
-                        }
-                    }
-                }
-            });
-
-            if (rfid.siswa.kelas && rfid.siswa.kelas.telegram_group_id) {
-                const notifData = {
-                    nama: rfid.siswa.nama,
-                    kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}`,
-                    status_tapin: statusTapIn,
-                    tap_in: formatTime(tapInTime),
-                    tanggal: formatDate(todayDate),
-                };
-
-                sendTapInNotification(rfid.siswa.kelas.telegram_group_id, notifData)
-                    .catch(error => {
-                        console.error('Failed to send Telegram notification:', error);
-                    });
-            }
-
-            const formattedAbsensi = {
-                id: absensi.id,
-                siswa: absensi.siswa,
-                tanggal: formatDate(absensi.tanggal),
-                tap_in: formatTime(absensi.tap_in),
-                tap_out: formatTime(absensi.tap_out),
-                status_tapin: absensi.status_tapin,
-                rfid: absensi.rfid,
-                jadwal_info: {
-                    hari: hariIni,
-                    mata_pelajaran_pertama: jadwalPertama.mata_pelajaran.nama_mapel,
-                    jam_mulai: formatTime(jadwalPertama.jam_mulai),
-                    jam_selesai: formatTime(jadwalPertama.jam_selesai)
-                },
-                created_at: formatDateTime(absensi.created_at)
-            };
-
-            return res.status(201).json({
-                success: true,
-                message: `Tap in berhasil - ${statusTapIn} (otomatis, belum jam pulang)`,
-                data: formattedAbsensi
-            });
-        }
-
-        // jika sudah jam pulang, maka proses sebagai tap out
-        const absensiTapIn = await prisma.absensiSiswa.findFirst({
-            where: {
-                siswa_id: rfid.siswa_id,
-                tanggal: todayDate,
-                tap_in: { not: null },
-                deleted_at: null
-            }
-        });
-
-        if (!absensiTapIn) {
-            return res.status(404).json({
-                success: false,
-                message: "Belum melakukan tap in hari ini"
-            });
-        }
-
-        const existingTapOut = await prisma.absensiSiswa.findFirst({
-            where: {
-                siswa_id: rfid.siswa_id,
-                tanggal: todayDate,
-                tap_out: { not: null },
-                deleted_at: null
-            }
-        });
-
-        if (existingTapOut) {
-            return res.status(409).json({
-                success: false,
-                message: "Sudah melakukan tap out hari ini"
-            });
-        }
-
-        const tapOutTime = new Date();
-
-        const updatedAbsensi = await prisma.absensiSiswa.update({
-            where: { id: absensiTapIn.id },
-            data: {
-                tap_out: tapOutTime
-            },
-            include: {
-                siswa: {
-                    select: {
-                        nama: true,
-                        kelas: {
-                            select: {
-                                kelas: true,
-                                jurusan: true
-                            }
-                        }
-                    }
-                },
-                rfid: {
-                    select: {
-                        uid_rfid: true
-                    }
-                }
-            }
-        });
-
-        if (rfid.siswa.kelas && rfid.siswa.kelas.telegram_group_id) {
-            const notifData = {
+        await addTapOutJob({
+            rfidId: rfid.id,
+            siswaId: rfid.siswa.id,
+            kelasId: rfid.siswa.kelas_id,
+            siswaData: {
                 nama: rfid.siswa.nama,
-                kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}`,
-                tap_out: formatTime(tapOutTime),
-                tanggal: formatDate(todayDate),
-            };
+                kelas: rfid.siswa.kelas ? {
+                    kelas: rfid.siswa.kelas.kelas,
+                    jurusan: rfid.siswa.kelas.jurusan,
+                    telegram_group_id: rfid.siswa.kelas.telegram_group_id
+                } : null
+            },
+            receivedAt
+        });
 
-            sendTapOutNotification(rfid.siswa.kelas.telegram_group_id, notifData)
-                .catch(error => {
-                    console.error('Failed to send Telegram notification:', error);
-                });
-        }
-
-        const formattedAbsensi = {
-            id: updatedAbsensi.id,
-            siswa: updatedAbsensi.siswa,
-            tanggal: formatDate(updatedAbsensi.tanggal),
-            tap_in: formatTime(updatedAbsensi.tap_in),
-            tap_out: formatTime(updatedAbsensi.tap_out),
-            status_tapin: updatedAbsensi.status_tapin,
-            rfid: updatedAbsensi.rfid,
-            updated_at: formatDateTime(updatedAbsensi.updated_at)
-        };
-
-        return res.status(200).json({
+        return res.status(202).json({
             success: true,
-            message: "Tap out berhasil",
-            data: formattedAbsensi
+            message: "Tap out diterima, sedang diproses",
+            data: {
+                uid_rfid,
+                nama: rfid.siswa.nama,
+                kelas: rfid.siswa.kelas ? `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}` : null,
+                received_at: receivedAt
+            }
         });
 
     } catch (error) {

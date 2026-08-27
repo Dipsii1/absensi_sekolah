@@ -5,6 +5,8 @@
 ![prisma ORM](https://img.shields.io/badge/prisma-ORM-purple)
 ![postgresql](https://img.shields.io/badge/database-PostgreSQL-blue)
 ![jwt auth](https://img.shields.io/badge/auth-JWT-orange)
+![bullmq](https://img.shields.io/badge/queue-BullMQ-red)
+![redis](https://img.shields.io/badge/cache-Redis-red)
 ![license MIT](https://img.shields.io/badge/license-MIT-green)
 
 Backend API untuk sistem **manajemen absensi sekolah** berbasis **Node.js + Express + Prisma**.
@@ -47,6 +49,11 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
 - **Penjadwalan Otomatis**
   - Cron job untuk pembuatan tahun ajaran baru & penyalinan kelas.
   - Cron job untuk auto-approve status request absensi.
+
+- **Queue & Redis (Async Processing)**
+  - Tap-in & tap-out RFID diproses secara asynchronous via **BullMQ** + **Redis**.
+  - Endpoint langsung return `202 Accepted`, proses ke DB dan notifikasi Telegram dipelayani worker di background.
+  - Retry otomatis (3x, 5s fixed backoff) bila worker gagal.
 
 - **Status Request**
   - Permintaan perubahan status absensi oleh Guru.
@@ -112,6 +119,12 @@ absensi_sekolah/
 │   ├── cron/                   # Cron job scheduler
 │   │   ├── tahunAjaran.js
 │   │   └── autoApproveStatus.js
+│   ├── queues/                  # BullMQ queue definitions
+│   │   ├── tapInQueue.js
+│   │   └── tapOutQueue.js
+│   ├── workers/                 # BullMQ background workers
+│   │   ├── tapInWorker.js
+│   │   └── tapOutWorker.js
 │   ├── helper/                  # Fungsi bantu (utils)
 │   │   ├── autoCreateTahunAjaran.js
 │   │   ├── dateUtils.js
@@ -119,8 +132,9 @@ absensi_sekolah/
 │   │   ├── helperFinalAbsensi.js
 │   │   ├── reqStatusAbsensi.js
 │   │   └── indexUtils.js
-│   └── config/                  # Konfigurasi (Prisma client, dll)
-│       └── prisma.js
+│   └── config/                  # Konfigurasi (Prisma client, Redis, dll)
+│       ├── prisma.js
+│       └── redis.js
 ├── views/                      # Template Jade
 ├── app.js                      # Konfigurasi Express
 ├── prisma.config.ts
@@ -153,8 +167,9 @@ Buat file `.env` di root project:
 DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/absensi_sekolah"
 JWT_SECRET="your_jwt_secret_key"
 TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
-TELEGRAM_CHAT_ID="your_chat_id"
 PORT=3000
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
 ```
 
 ### 4. Setup Database
@@ -170,7 +185,17 @@ npx prisma migrate dev --name init
 npm run seed
 ```
 
-### 5. Jalankan Aplikasi
+### 5. Jalankan Redis
+
+```bash
+# Linux/WSL
+sudo service redis-server start
+
+# Docker
+docker run -p 6379:6379 redis:7
+```
+
+### 6. Jalankan Aplikasi
 
 ```bash
 # Development (auto-reload)
@@ -198,6 +223,8 @@ Aplikasi berjalan di → `http://localhost:3000`
 | Export | ExcelJS |
 | Upload | Multer |
 | HTTP Client | Axios |
+| Queue | BullMQ |
+| Cache/Message Broker | Redis |
 
 ---
 
@@ -371,8 +398,8 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 | Method | Endpoint | Auth | Deskripsi |
 |--------|----------|------|-----------|
-| `POST` | `/absensi-siswa/tap-in` | ❌ | Catat absensi masuk via RFID |
-| `POST` | `/absensi-siswa/tap-out` | ❌ | Catat absensi keluar via RFID |
+| `POST` | `/absensi-siswa/tap-in` | ❌ | Catat absensi masuk via RFID (diproses async via BullMQ) |
+| `POST` | `/absensi-siswa/tap-out` | ❌ | Catat absensi keluar via RFID (diproses async via BullMQ) |
 | `GET` | `/absensi-siswa` | 🔒 | Ambil semua data absensi |
 | `GET` | `/absensi-siswa/laporan/harian` | 🔒 | Laporan absensi harian |
 | `GET` | `/absensi-siswa/laporan/range` | 🔒 | Laporan absensi rentang tanggal |

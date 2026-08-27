@@ -27,6 +27,9 @@ var exportRoutes = require('./src/routes/exportRoutes');
 
 var app = express();
 
+require('./src/workers/tapInWorker')
+require('./src/workers/tapOutWorker')
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
@@ -38,7 +41,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(cors({
-  // origin: 'http://10.1.128.31' || process.env.URL_FRONTEND?.trim(),
+  origin: "http://localhost:4321",
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
@@ -76,6 +79,10 @@ app.use(function (err, req, res, next) {
 
   res.status(err.status || 500);
   res.render('error');
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log(`Server is running on port ${process.env.PORT || 3000}`);
 });
 
 

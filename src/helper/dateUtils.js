@@ -64,6 +64,11 @@ const getTanggalRangeWIB = (tanggalStr) => {
     return { start, end };
 };
 
+// Waktu sekarang dalam WIB (timezone-safe, tidak bergantung timezone server)
+const getNowWIB = () => {
+    return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+};
+
 // Nomor minggu ISO dalam tahun
 const getWeekNumber = (date) => {
     const d = new Date(date);
@@ -89,4 +94,5 @@ module.exports = {
     parseTanggal,
     getTanggalRangeWIB,
     getWeekNumber,
+    getNowWIB,
 };
