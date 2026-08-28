@@ -166,8 +166,8 @@ const createJadwal = async (req, res) => {
         }
 
         // Konversi jam
-        const jamMulaiTime = `${jam_mulai}:00`;
-        const jamSelesaiTime = `${jam_selesai}:00`;
+        const jamMulaiTime = `${jam_mulai}:00Z`;
+        const jamSelesaiTime = `${jam_selesai}:00Z`;
 
         // Validasi jam selesai harus setelah jam mulai
         const [jamMulaiHour, jamMulaiMinute] = jam_mulai.split(':').map(Number);
@@ -323,8 +323,8 @@ const updateJadwal = async (req, res) => {
         }
 
         // Konversi jam
-        const jamMulaiTime = `${jam_mulai}:00`;
-        const jamSelesaiTime = `${jam_selesai}:00`;
+        const jamMulaiTime = `${jam_mulai}:00Z`;
+        const jamSelesaiTime = `${jam_selesai}:00Z`;
 
         // Validasi jam selesai harus setelah jam mulai
         const [jamMulaiHour, jamMulaiMinute] = jam_mulai.split(':').map(Number);
@@ -594,8 +594,8 @@ const importJadwal = async (req, res) => {
                 continue;
             }
 
-            const jamMulaiDate = new Date(`1970-01-01T${jamMulai}:00`);
-            const jamSelesaiDate = new Date(`1970-01-01T${jamSelesai}:00`);
+            const jamMulaiDate = new Date(`1970-01-01T${jamMulai}:00Z`);
+            const jamSelesaiDate = new Date(`1970-01-01T${jamSelesai}:00Z`);
 
             const overlapCondition = [
                 { AND: [{ jam_mulai: { lte: jamMulaiDate } }, { jam_selesai: { gt: jamMulaiDate } }] },

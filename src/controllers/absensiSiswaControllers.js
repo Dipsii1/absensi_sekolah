@@ -3,6 +3,7 @@ const { sendTapInNotification, sendTapOutNotification } = require("../services/t
 const { formatDate, formatTime, formatDateTime, getHariFromDate, getTodayStrWIB, toDateOnly, getTanggalRangeWIB } = require("../helper/indexUtils");
 const { addTapInJob } = require("../queues/tapInQueue");
 const { addTapOutJob } = require("../queues/tapOutQueue");
+const { tapInQueueEvents, tapOutQueueEvents } = require("../helper/queueEvents");
 
 const validateRfid = async (uid_rfid) => {
     if (!uid_rfid) return { error: { status: 400, message: "UID RFID harus terisi" } };
@@ -18,6 +19,8 @@ const validateRfid = async (uid_rfid) => {
     return { rfid };
 };
 
+const JOB_TIMEOUT_MS = 5000; // 5 detik, cukup karena tidak ada retry lagi
+
 // Tap In
 const tapIn = async (req, res) => {
     try {
@@ -27,7 +30,7 @@ const tapIn = async (req, res) => {
 
         const receivedAt = new Date().toISOString();
 
-        await addTapInJob({
+        const job = await addTapInJob({
             rfidId: rfid.id,
             siswaId: rfid.siswa.id,
             kelasId: rfid.siswa.kelas_id,
@@ -42,14 +45,28 @@ const tapIn = async (req, res) => {
             receivedAt
         });
 
-        return res.status(202).json({
+        let result;
+        try {
+            result = await job.waitUntilFinished(tapInQueueEvents, JOB_TIMEOUT_MS);
+        } catch (jobError) {
+            return res.status(400).json({ success: false, message: jobError.message });
+        }
+
+        if (result?.skipped && result.reason === 'already_tapped_in') {
+            return res.status(409).json({ success: false, message: "Anda sudah melakukan tap in hari ini" });
+        }
+
+        return res.status(200).json({
             success: true,
-            message: "Tap in diterima, sedang diproses",
+            message: "Tap in berhasil",
             data: {
-                uid_rfid,
-                nama: rfid.siswa.nama,
-                kelas: rfid.siswa.kelas ? `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}` : null,
-                received_at: receivedAt
+                siswa: {
+                    nama: rfid.siswa.nama,
+                    kelas: rfid.siswa.kelas
+                },
+                tap_in: formatTime(result.tapInTime),
+                tap_out: formatTime(result.tapOutTime),
+                status_tapin: result.statusTapIn
             }
         });
 
@@ -72,7 +89,7 @@ const tapOut = async (req, res) => {
 
         const receivedAt = new Date().toISOString();
 
-        await addTapOutJob({
+        const job = await addTapOutJob({
             rfidId: rfid.id,
             siswaId: rfid.siswa.id,
             kelasId: rfid.siswa.kelas_id,
@@ -87,14 +104,28 @@ const tapOut = async (req, res) => {
             receivedAt
         });
 
-        return res.status(202).json({
+        let result;
+        try {
+            result = await job.waitUntilFinished(tapOutQueueEvents, JOB_TIMEOUT_MS);
+        } catch (jobError) {
+            return res.status(400).json({ success: false, message: jobError.message });
+        }
+
+        if (result?.skipped && result.reason === 'already_tapped_out') {
+            return res.status(409).json({ success: false, message: "Anda sudah melakukan tap out hari ini" });
+        }
+
+        return res.status(200).json({
             success: true,
-            message: "Tap out diterima, sedang diproses",
+            message: "Tap out berhasil",
             data: {
-                uid_rfid,
-                nama: rfid.siswa.nama,
-                kelas: rfid.siswa.kelas ? `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan}` : null,
-                received_at: receivedAt
+                siswa: {
+                    nama: rfid.siswa.nama,
+                    kelas: rfid.siswa.kelas
+                },
+                tap_in: formatTime(result.tapInTime),
+                tap_out: formatTime(result.tapOutTime),
+                status_tapin: null
             }
         });
 

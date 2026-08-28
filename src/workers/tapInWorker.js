@@ -41,15 +41,17 @@ const tapInWorker = new Worker('tap-in', async (job) => {
     })
 
     if (!jadwalPertama) {
-        throw new Error(`Tidak ada jadwal untuk kelas_id ${kelasId} di hari ${hariIni}`)
+        const namaKelas = siswaData.kelas
+            ? `${siswaData.kelas.kelas} ${siswaData.kelas.jurusan}`
+            : `kelas_id ${kelasId}`
+        throw new Error(`Tidak ada jadwal untuk kelas ${namaKelas} di hari ${hariIni}`)
     }
 
     const tapInTime = new Date(receivedAt)
     const nowWIB = getNowWIB()
     const jamMulai = new Date(jadwalPertama.jam_mulai)
-    const jamMulaiWIB = new Date(jamMulai.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }))
     const threshold = new Date(nowWIB)
-    threshold.setHours(jamMulaiWIB.getHours(), jamMulaiWIB.getMinutes(), 0, 0)
+    threshold.setHours(jamMulai.getUTCHours(), jamMulai.getUTCMinutes(), 0, 0)
 
     const statusTapIn = nowWIB <= threshold ? 'Tepat_Waktu' : 'Terlambat'
 
@@ -77,7 +79,7 @@ const tapInWorker = new Worker('tap-in', async (job) => {
     }
 
     console.log(`[TapIn Worker] Berhasil: siswa ${siswaId}, status: ${statusTapIn}`)
-    return { success: true, absensiId: absensi.id, statusTapIn }
+    return { success: true, absensiId: absensi.id, statusTapIn,  tapInTime: absensi.tap_in }
 }, { connection, concurrency: 5 })
 
 tapInWorker.on('failed', (job, err) => {

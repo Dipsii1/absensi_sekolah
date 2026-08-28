@@ -4,11 +4,10 @@ const connection = require('../config/redis')
 const tapInQueue = new Queue('tap-in', { connection })
 
 const addTapInJob = async (data) => {
-    await tapInQueue.add('process', data, {
-        attempts: 3,
-        backoff: { type: 'fixed', delay: 5000 },
+    return tapInQueue.add('process', data, {
+        attempts: 1,
         removeOnComplete: true,
-        removeOnFail: false,
+        removeOnFail: true,
     })
 }
 
