@@ -64,7 +64,7 @@ const tapOutWorker = new Worker('tap-out', async (job) => {
         throw new Error(`Belum waktunya pulang. Jadwal pulang jam ${formatJam(jadwalTerakhir.jam_selesai)}`)
     }
 
-    await prisma.absensiSiswa.update({
+    const updatedAbsensi = await prisma.absensiSiswa.update({
         where: { id: absensiHariIni.id },
         data: { tap_out: tapOutTime }
     })
@@ -81,7 +81,7 @@ const tapOutWorker = new Worker('tap-out', async (job) => {
     }
 
     console.log(`[TapOut Worker] Tap OUT berhasil: siswa ${siswaId}`)
-    return { success: true, mode: 'tap_out', absensiId: absensiHariIni.id,tapInTime: absensiHariIni.tap_in, tapOutTime: absensiHariIni.tap_out }
+    return { success: true, mode: 'tap_out', absensiId: absensiHariIni.id, tapInTime: absensiHariIni.tap_in, tapOutTime: updatedAbsensi.tap_out }
 }, { connection, concurrency: 5 })
 
 tapOutWorker.on('failed', (job, err) => {
