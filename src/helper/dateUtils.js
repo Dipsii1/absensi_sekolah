@@ -45,8 +45,6 @@ const formatJam = (date) => {
     if (!date) return null;
     const d = new Date(date);
     if (Number.isNaN(d.getTime())) return null;
-    // @db.Time disimpan sebagai wall-clock WIB (UTC+7)
-    // Tampilkan dengan timezone WIB agar jam benar
     return d.toLocaleTimeString('id-ID', {
         hour: '2-digit',
         minute: '2-digit',

@@ -4,7 +4,8 @@ const XLSX = require("xlsx");
 
 const createTimeDate = (time) => {
     const [hour, minute] = time.split(":").map(Number);
-    return new Date(Date.UTC(1970, 0, 1, hour, minute, 0, 0));
+    const utcHour = (hour - 7 + 24) % 24;
+    return new Date(Date.UTC(1970, 0, 1, utcHour, minute, 0, 0));
 };
 
 // get all jadwal
