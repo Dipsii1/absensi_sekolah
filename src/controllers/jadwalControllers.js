@@ -166,8 +166,16 @@ const createJadwal = async (req, res) => {
         }
 
         // Konversi jam
-        const jamMulaiTime = `${jam_mulai}:00Z`;
-        const jamSelesaiTime = `${jam_selesai}:00Z`;
+        const createTimeDate = (time) => {
+            const [hour, minute] = time.split(":").map(Number);
+
+            const date = new Date(1970, 0, 1, hour, minute, 0, 0);
+
+            return date;
+        };
+
+        const jamMulaiDate = createTimeDate(jam_mulai);
+        const jamSelesaiDate = createTimeDate(jam_selesai);
 
         // Validasi jam selesai harus setelah jam mulai
         const [jamMulaiHour, jamMulaiMinute] = jam_mulai.split(':').map(Number);
@@ -182,12 +190,14 @@ const createJadwal = async (req, res) => {
             });
         }
 
-        const overlapCondition = [
-            { AND: [{ jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } }, { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }] },
-            { AND: [{ jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } }, { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }] },
-            { AND: [{ jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } }, { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }] },
-            { AND: [{ jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } }, { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }] }
-        ];
+        const overlapCondition = {
+            jam_mulai: {
+                lt: jamSelesaiDate
+            },
+            jam_selesai: {
+                gt: jamMulaiDate
+            }
+        };
 
         // Cek konflik jadwal kelas
         const conflictKelas = await prisma.jadwal.findFirst({
@@ -195,7 +205,7 @@ const createJadwal = async (req, res) => {
                 kelas_id: parseInt(kelas_id),
                 hari: hariNormalized,
                 deleted_at: null,
-                OR: overlapCondition
+                ...overlapCondition
             }
         });
         if (conflictKelas) {
@@ -217,7 +227,7 @@ const createJadwal = async (req, res) => {
                 guru_id: parseInt(guru_id),
                 hari: hariNormalized,
                 deleted_at: null,
-                OR: overlapCondition
+                ...overlapCondition
             }
         });
         if (conflictGuru) {
@@ -329,8 +339,16 @@ const updateJadwal = async (req, res) => {
         }
 
         // Konversi jam
-        const jamMulaiTime = `${jam_mulai}:00Z`;
-        const jamSelesaiTime = `${jam_selesai}:00Z`;
+        const createTimeDate = (time) => {
+            const [hour, minute] = time.split(":").map(Number);
+
+            const date = new Date(1970, 0, 1, hour, minute, 0, 0);
+
+            return date;
+        };
+
+        const jamMulaiDate = createTimeDate(jam_mulai);
+        const jamSelesaiDate = createTimeDate(jam_selesai);
 
         // Validasi jam selesai harus setelah jam mulai
         const [jamMulaiHour, jamMulaiMinute] = jam_mulai.split(':').map(Number);
@@ -345,34 +363,34 @@ const updateJadwal = async (req, res) => {
             });
         }
 
-        const overlapCondition = [
-            { AND: [{ jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } }, { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }] },
-            { AND: [{ jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } }, { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }] },
-            { AND: [{ jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } }, { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }] },
-            { AND: [{ jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } }, { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }] }
-        ];
+        const overlapCondition = {
+            jam_mulai: {
+                lt: jamSelesaiDate
+            },
+            jam_selesai: {
+                gt: jamMulaiDate
+            }
+        };
 
         // Cek konflik (exclude jadwal yang sedang diupdate)
-        const [conflictKelas, conflictGuru] = await Promise.all([
-            prisma.jadwal.findFirst({
-                where: {
-                    kelas_id: parseInt(kelas_id),
-                    hari: hariNormalized,
-                    deleted_at: null,
-                    NOT: { id: parseInt(id) },
-                    OR: overlapCondition
-                }
-            }),
-            prisma.jadwal.findFirst({
-                where: {
-                    guru_id: parseInt(guru_id),
-                    hari: hariNormalized,
-                    deleted_at: null,
-                    NOT: { id: parseInt(id) },
-                    OR: overlapCondition
-                }
-            })
-        ]);
+        const conflictKelas = await prisma.jadwal.findFirst({
+            where: {
+                kelas_id: parseInt(kelas_id),
+                hari: hariNormalized,
+                deleted_at: null,
+                ...overlapCondition
+            }
+        });
+
+
+        const conflictGuru = await prisma.jadwal.findFirst({
+            where: {
+                guru_id: parseInt(guru_id),
+                hari: hariNormalized,
+                deleted_at: null,
+                ...overlapCondition
+            }
+        });
 
         if (conflictKelas) {
             return res.status(409).json({ success: false, message: "Jadwal bentrok dengan jadwal kelas lain" });
@@ -600,23 +618,32 @@ const importJadwal = async (req, res) => {
                 continue;
             }
 
-            const jamMulaiDate = new Date(`1970-01-01T${jamMulai}:00Z`);
-            const jamSelesaiDate = new Date(`1970-01-01T${jamSelesai}:00Z`);
+            const createTimeDate = (time) => {
+                const [hour, minute] = time.split(":").map(Number);
 
-            const overlapCondition = [
-                { AND: [{ jam_mulai: { lte: jamMulaiDate } }, { jam_selesai: { gt: jamMulaiDate } }] },
-                { AND: [{ jam_mulai: { lt: jamSelesaiDate } }, { jam_selesai: { gte: jamSelesaiDate } }] },
-                { AND: [{ jam_mulai: { gte: jamMulaiDate } }, { jam_selesai: { lte: jamSelesaiDate } }] },
-                { AND: [{ jam_mulai: { lte: jamMulaiDate } }, { jam_selesai: { gte: jamSelesaiDate } }] }
-            ];
+                const date = new Date(1970, 0, 1, hour, minute, 0, 0);
+
+                return date;
+            };
+
+            const jamMulaiDate = createTimeDate(jam_mulai);
+            const jamSelesaiDate = createTimeDate(jam_selesai);
+
+            const overlapCondition = {
+                jam_mulai: {
+                    lt: jamSelesaiDate
+                },
+                jam_selesai: {
+                    gt: jamMulaiDate
+                }
+            };
 
             const conflictKelas = await prisma.jadwal.findFirst({
                 where: {
-                    kelas_id: kelasRecord.id,
-                    hari,
+                    kelas_id: parseInt(kelas_id),
+                    hari: hariNormalized,
                     deleted_at: null,
-                    ...(id !== null ? { NOT: { id } } : {}),
-                    OR: overlapCondition
+                    ...overlapCondition
                 }
             });
             if (conflictKelas) {
@@ -627,11 +654,10 @@ const importJadwal = async (req, res) => {
 
             const conflictGuru = await prisma.jadwal.findFirst({
                 where: {
-                    guru_id: guruRecord.id,
-                    hari,
+                    guru_id: parseInt(guru_id),
+                    hari: hariNormalized,
                     deleted_at: null,
-                    ...(id !== null ? { NOT: { id } } : {}),
-                    OR: overlapCondition
+                    ...overlapCondition
                 }
             });
             if (conflictGuru) {
