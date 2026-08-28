@@ -41,18 +41,17 @@ const formatTime = (time) => {
     });
 };
 
-// Format wall-clock TIME (@db.Time) ke HH.MM (gaya locale id-ID).
-// Kolom @db.Time dibaca Prisma sebagai Date pada epoch UTC dengan UTC-hour = jam wall-clock WIB,
-// sehingga format dengan timeZone 'UTC' memaparkan jam WIB tanpa perlu shift +7.
 const formatJam = (date) => {
     if (!date) return null;
     const d = new Date(date);
     if (Number.isNaN(d.getTime())) return null;
+    // @db.Time disimpan sebagai wall-clock WIB (UTC+7)
+    // Tampilkan dengan timezone WIB agar jam benar
     return d.toLocaleTimeString('id-ID', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
-        timeZone: 'UTC'
+        timeZone: 'Asia/Jakarta'
     });
 };
 
