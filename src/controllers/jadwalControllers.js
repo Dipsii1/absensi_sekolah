@@ -201,7 +201,13 @@ const createJadwal = async (req, res) => {
         if (conflictKelas) {
             return res.status(409).json({
                 success: false,
-                message: "Jadwal bentrok dengan jadwal kelas lain pada waktu yang sama"
+                message: "Jadwal bentrok dengan jadwal kelas lain pada waktu yang sama",
+                conflict: {
+                    id: conflictKelas.id,
+                    hari: conflictKelas.hari,
+                    jam_mulai_raw: conflictKelas.jam_mulai,
+                    jam_selesai_raw: conflictKelas.jam_selesai
+                }
             });
         }
 
