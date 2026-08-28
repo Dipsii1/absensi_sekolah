@@ -273,10 +273,10 @@ const login = async (req, res) => {
         }
 
         if (ysboSuccess) {
+            // Cari user TERMASUK yang sudah soft-deleted (bukan pakai deleted_at: null)
             user = await prisma.user.findFirst({
                 where: {
                     username: ysboUser.username,
-                    deleted_at: null,
                 },
                 include: {
                     userRole: {
@@ -301,6 +301,7 @@ const login = async (req, res) => {
             });
 
             if (!user) {
+                // User belum ada → buat baru (guru + user)
                 const roleCache = await getRoleCache();
                 const defaultRole = roleCache["GURU"];
 
@@ -353,7 +354,54 @@ const login = async (req, res) => {
                         },
                     });
                 });
+            } else if (user.deleted_at !== null) {
+                // User ada tapi sudah di-hapus → RESTORE akun
+                const roleCache = await getRoleCache();
+                const defaultRole = roleCache["GURU"];
+                const hashedPassword = await bcrypt.hash(password, 10);
+
+                // Reset deleted_at dan password
+                user = await prisma.user.update({
+                    where: { id: user.id },
+                    data: {
+                        deleted_at: null,
+                        password: hashedPassword,
+                    },
+                    include: {
+                        userRole: {
+                            include: {
+                                role: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                    },
+                                },
+                            },
+                        },
+                        guru: {
+                            select: {
+                                id: true,
+                                NIP: true,
+                                nama: true,
+                                nomor_telepon: true,
+                            },
+                        },
+                    },
+                });
+
+                // Reset role ke default GURU
+                await prisma.userRole.deleteMany({ where: { user_id: user.id } });
+                await prisma.userRole.create({
+                    data: {
+                        user_id: user.id,
+                        role_id: defaultRole.id,
+                    },
+                });
+
+                // Reset cache role
+                invalidateRoleCache();
             }
+            // Jika user ada dan tidak deleted → lanjut login normal (tidak perlu aksi tambahan)
         }
 
 
