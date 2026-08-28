@@ -1,6 +1,6 @@
 const cron = require("node-cron");
 const prisma = require("../config/prisma");
-const { getTodayStrWIB } = require("../helper/dateUtils");
+const { getTodayStrWIB, wibTodayAt } = require("../helper/dateUtils");
 const { getHariFromDate } = require("../helper/daysUtils");
 
 // Jalankan setiap hari jam 20:00 WIB (Senin-Sabtu)
@@ -94,7 +94,7 @@ cron.schedule("0 20 * * 1-6", async () => {
                 const jamSelesai = jadwalTerakhirPerKelas[absensi.siswa.kelas_id];
                 await prisma.absensiSiswa.update({
                     where: { id: absensi.id },
-                    data: { tap_out: jamSelesai }
+                    data: { tap_out: wibTodayAt(jamSelesai) }
                 });
                 berhasil++;
             } catch (error) {

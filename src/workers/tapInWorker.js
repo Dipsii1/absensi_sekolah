@@ -2,7 +2,7 @@ const { Worker } = require('bullmq')
 const connection = require('../config/redis')
 const prisma = require('../config/prisma')
 const { sendTapInNotification } = require('../services/telegramServices')
-const { formatDate, formatTime, getTodayStrWIB, toDateOnly, getNowWIB } = require('../helper/indexUtils')
+const { formatDate, formatTime, getTodayStrWIB, toDateOnly, wibTodayAt } = require('../helper/indexUtils')
 const { getHariFromDate } = require('../helper/daysUtils')
 
 const tapInWorker = new Worker('tap-in', async (job) => {
@@ -48,12 +48,9 @@ const tapInWorker = new Worker('tap-in', async (job) => {
     }
 
     const tapInTime = new Date(receivedAt)
-    const nowWIB = getNowWIB()
-    const jamMulai = new Date(jadwalPertama.jam_mulai)
-    const threshold = new Date(nowWIB)
-    threshold.setHours(jamMulai.getUTCHours(), jamMulai.getUTCMinutes(), 0, 0)
+    const threshold = wibTodayAt(jadwalPertama.jam_mulai)
 
-    const statusTapIn = nowWIB <= threshold ? 'Tepat_Waktu' : 'Terlambat'
+    const statusTapIn = tapInTime <= threshold ? 'Tepat_Waktu' : 'Terlambat'
 
     const absensi = await prisma.absensiSiswa.create({
         data: {

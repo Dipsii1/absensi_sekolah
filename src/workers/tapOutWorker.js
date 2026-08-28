@@ -2,7 +2,7 @@ const { Worker } = require('bullmq')
 const connection = require('../config/redis')
 const prisma = require('../config/prisma')
 const { sendTapOutNotification } = require('../services/telegramServices')
-const { formatDate, formatTime, getTodayStrWIB, toDateOnly, getNowWIB } = require('../helper/indexUtils')
+const { formatDate, formatTime, formatJam, getTodayStrWIB, toDateOnly, wibTodayAt } = require('../helper/indexUtils')
 const { getHariFromDate } = require('../helper/daysUtils')
 
 const tapOutWorker = new Worker('tap-out', async (job) => {
@@ -57,16 +57,12 @@ const tapOutWorker = new Worker('tap-out', async (job) => {
         throw new Error(`Tidak ada jadwal untuk kelas ${namaKelas} di hari ${hariIni}, tidak bisa tap out`)
     }
 
-    const nowWIB = getNowWIB()
-    const jamSelesai = new Date(jadwalTerakhir.jam_selesai)
-    const jamPulangWIB = new Date(nowWIB)
-    jamPulangWIB.setHours(jamSelesai.getUTCHours(), jamSelesai.getUTCMinutes(), 0, 0)
-
-    if (nowWIB < jamPulangWIB) {
-        throw new Error(`Belum waktunya pulang. Jadwal pulang jam ${formatTime(jamPulangWIB)}`)
-    }
-
     const tapOutTime = new Date(receivedAt)
+    const jamPulangWIB = wibTodayAt(jadwalTerakhir.jam_selesai)
+
+    if (tapOutTime < jamPulangWIB) {
+        throw new Error(`Belum waktunya pulang. Jadwal pulang jam ${formatJam(jadwalTerakhir.jam_selesai)}`)
+    }
 
     await prisma.absensiSiswa.update({
         where: { id: absensiHariIni.id },

@@ -1,5 +1,5 @@
 const prisma = require("../config/prisma");
-const { formatDateTime, formatTime, validateTimeFormat, validateHari } = require("../helper/indexUtils");
+const { formatDateTime, formatTime, formatJam, validateTimeFormat, validateHari } = require("../helper/indexUtils");
 const XLSX = require("xlsx");
 
 // get all jadwal
@@ -69,9 +69,9 @@ const getAllJadwal = async (req, res) => {
         const formattedData = data.map(jadwal => ({
             id: jadwal.id,
             hari: jadwal.hari,
-            jam_mulai: formatTime(jadwal.jam_mulai),
-            jam_selesai: formatTime(jadwal.jam_selesai),
-            jam_lengkap: `${formatTime(jadwal.jam_mulai)} - ${formatTime(jadwal.jam_selesai)}`,
+            jam_mulai: formatJam(jadwal.jam_mulai),
+            jam_selesai: formatJam(jadwal.jam_selesai),
+            jam_lengkap: `${formatJam(jadwal.jam_mulai)} - ${formatJam(jadwal.jam_selesai)}`,
             kelas: jadwal.kelas,
             mata_pelajaran: jadwal.mata_pelajaran,
             guru: jadwal.guru,
@@ -244,9 +244,9 @@ const createJadwal = async (req, res) => {
             data: {
                 id: newJadwal.id,
                 hari: newJadwal.hari,
-                jam_mulai: formatTime(newJadwal.jam_mulai),
-                jam_selesai: formatTime(newJadwal.jam_selesai),
-                jam_lengkap: `${formatTime(newJadwal.jam_mulai)} - ${formatTime(newJadwal.jam_selesai)}`,
+                jam_mulai: formatJam(newJadwal.jam_mulai),
+                jam_selesai: formatJam(newJadwal.jam_selesai),
+                jam_lengkap: `${formatJam(newJadwal.jam_mulai)} - ${formatJam(newJadwal.jam_selesai)}`,
                 kelas: newJadwal.kelas,
                 mata_pelajaran: newJadwal.mata_pelajaran,
                 guru: newJadwal.guru,
@@ -400,9 +400,9 @@ const updateJadwal = async (req, res) => {
             data: {
                 id: updatedJadwal.id,
                 hari: updatedJadwal.hari,
-                jam_mulai: formatTime(updatedJadwal.jam_mulai),
-                jam_selesai: formatTime(updatedJadwal.jam_selesai),
-                jam_lengkap: `${formatTime(updatedJadwal.jam_mulai)} - ${formatTime(updatedJadwal.jam_selesai)}`,
+                jam_mulai: formatJam(updatedJadwal.jam_mulai),
+                jam_selesai: formatJam(updatedJadwal.jam_selesai),
+                jam_lengkap: `${formatJam(updatedJadwal.jam_mulai)} - ${formatJam(updatedJadwal.jam_selesai)}`,
                 kelas: updatedJadwal.kelas,
                 mata_pelajaran: updatedJadwal.mata_pelajaran,
                 guru: updatedJadwal.guru,

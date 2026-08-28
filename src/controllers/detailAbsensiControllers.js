@@ -1,6 +1,6 @@
 const prisma = require("../config/prisma");
 const { StatusAbsensi } = require("@prisma/client");
-const { formatDate, formatTime, formatDateTime, validateHari, getHariFromDate, parseTanggal, getTodayWIB, getWeekNumber } = require("../helper/indexUtils");
+const { formatDate, formatTime, formatDateTime, formatJam, validateHari, getHariFromDate, parseTanggal, getTodayWIB, getWeekNumber } = require("../helper/indexUtils");
 const { simpanFinalAbsensi } = require("../services/finalAbsensi");
 
 const NAMA_BULAN = [
@@ -171,7 +171,7 @@ const absensiByGuru = async (req, res) => {
                 id: jadwal.id,
                 kelas: jadwal.kelas.kelas,
                 hari: jadwal.hari,
-                jam: `${formatTime(jadwal.jam_mulai)} - ${formatTime(jadwal.jam_selesai)}`
+                jam: `${formatJam(jadwal.jam_mulai)} - ${formatJam(jadwal.jam_selesai)}`
             },
             data: results
         });

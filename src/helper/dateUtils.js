@@ -1,4 +1,6 @@
 // Format date + time ke string ID (dd/mm/yyyy HH:MM:SS)
+const WIB = 'Asia/Jakarta';
+
 const formatDateTime = (date) => {
     if (!date) return null;
     return new Date(date).toLocaleString('id-ID', {
@@ -8,7 +10,7 @@ const formatDateTime = (date) => {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        timeZone: 'Asia/Jakarta'
+        timeZone: WIB
     });
 };
 
@@ -26,20 +28,57 @@ const formatDate = (date) => {
 // Format time ke HH:MM
 const formatTime = (time) => {
     if (!time) return null;
-    if (typeof time === 'string') {
-        return time.substring(0, 5);
+    const d = new Date(typeof time === 'string' ? time : time);
+    if (Number.isNaN(d.getTime())) {
+        // fallback: string time-only yang tidak bisa diparse (mis. "08:00")
+        return typeof time === 'string' ? time.slice(0, 5) : null;
     }
-    return new Date(time).toLocaleTimeString('id-ID', {
+    return d.toLocaleTimeString('id-ID', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
-        timeZone: 'Asia/Jakarta'
+        timeZone: WIB
     });
+};
+
+// Format wall-clock TIME (@db.Time) ke HH.MM (gaya locale id-ID).
+// Kolom @db.Time dibaca Prisma sebagai Date pada epoch UTC dengan UTC-hour = jam wall-clock WIB,
+// sehingga format dengan timeZone 'UTC' memaparkan jam WIB tanpa perlu shift +7.
+const formatJam = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'UTC'
+    });
+};
+
+// String tanggal hari ini (WIB) dalam format en-CA "YYYY-MM-DD"
+const _todayWIBDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: WIB });
+
+// Bangun real UTC-instant "hari ini, HH:MM WIB" dari:
+//  - string "HH:MM"   (wall-clock WIB)
+//  - Date @db.Time    (epoch UTC, UTC-hour = wall-clock WIB)
+// Dipakai untuk membandingkan tap_in/tap_out vs jadwal dalam zona waktu yang sama.
+const wibTodayAt = (time) => {
+    let h, m;
+    if (typeof time === 'string') {
+        [h, m] = time.split(':').map(Number);
+    } else {
+        const d = new Date(time);
+        h = d.getUTCHours();
+        m = d.getUTCMinutes();
+    }
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return new Date(`${_todayWIBDateStr()}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000+07:00`);
 };
 
 // Ambil string tanggal hari ini dalam WIB "YYYY-MM-DD"
 const getTodayStrWIB = () => {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    return new Date().toLocaleDateString('en-CA', { timeZone: WIB });
 };
 
 // Harus pakai UTC midnight agar PostgreSQL simpan tanggal yang benar
@@ -64,17 +103,17 @@ const getTanggalRangeWIB = (tanggalStr) => {
     return { start, end };
 };
 
-// Waktu sekarang dalam WIB (timezone-safe, tidak bergantung timezone server)
-const getNowWIB = () => {
-    return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
-};
+// Waktu sekarang sebagai real UTC-instant.
+// Pakai ini untuk dibandingkan dengan nilai @db.Timestamptz (tap_in/tap_out);
+// tampilan pakai formatTime/formatDateTime (timeZone WIB).
+const getNowWIB = () => new Date();
 
-// Nomor minggu ISO dalam tahun
+// Nomor minggu ISO dalam tahun (operasi pada UTC, karena input tanggal disimpan UTC-midnight = tanggal WIB)
 const getWeekNumber = (date) => {
     const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-    const yearStart = new Date(d.getFullYear(), 0, 1);
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = Date.UTC(d.getUTCFullYear(), 0, 1);
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 };
 
@@ -87,6 +126,8 @@ module.exports = {
     formatDateTime,
     formatDate,
     formatTime,
+    formatJam,
+    wibTodayAt,
     validateTimeFormat,
     getTodayStrWIB,
     toDateOnly,

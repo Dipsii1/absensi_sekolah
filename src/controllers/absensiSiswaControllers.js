@@ -1,6 +1,6 @@
 const prisma = require("../config/prisma");
 const { sendTapInNotification, sendTapOutNotification } = require("../services/telegramServices");
-const { formatDate, formatTime, formatDateTime, getHariFromDate, getTodayStrWIB, toDateOnly, getTanggalRangeWIB } = require("../helper/indexUtils");
+const { formatDate, formatTime, formatDateTime, formatJam, getHariFromDate, getTodayStrWIB, toDateOnly, getTanggalRangeWIB } = require("../helper/indexUtils");
 const { addTapInJob } = require("../queues/tapInQueue");
 const { addTapOutJob } = require("../queues/tapOutQueue");
 const { tapInQueueEvents, tapOutQueueEvents } = require("../helper/queueEvents");
@@ -300,8 +300,8 @@ const getAbsensiById = async (req, res) => {
             jadwal: {
                 id: detail.jadwal.id,
                 hari: detail.jadwal.hari,
-                jam_mulai: formatTime(detail.jadwal.jam_mulai),
-                jam_selesai: formatTime(detail.jadwal.jam_selesai),
+                jam_mulai: formatJam(detail.jadwal.jam_mulai),
+                jam_selesai: formatJam(detail.jadwal.jam_selesai),
                 mata_pelajaran: detail.jadwal.mata_pelajaran,
                 guru: detail.jadwal.guru
             }

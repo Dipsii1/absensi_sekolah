@@ -1,4 +1,6 @@
 const VALID_HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const WIB = 'Asia/Jakarta';
+const _wibWeekday = new Intl.DateTimeFormat('id-ID', { weekday: 'long', timeZone: WIB });
 
 const validateHari = (hari) => {
     if (!hari) return false;
@@ -7,10 +9,10 @@ const validateHari = (hari) => {
     return VALID_HARI.includes(normalized);
 };
 
+// Nama hari dalam WIB, timezone-agnostic (gunakan Intl, tidak bergantung process.tz).
 const getHariFromDate = (date) => {
     if (!date) return null;
-    const wibDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
-    return VALID_HARI[wibDate.getDay()];
+    return _wibWeekday.format(new Date(date));
 };
 
 module.exports = {

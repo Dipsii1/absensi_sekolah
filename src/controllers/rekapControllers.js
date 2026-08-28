@@ -82,12 +82,12 @@ const getRekapAbsensiSiswaWeekly = async (req, res) => {
         }
 
         const startDate = parseTanggal(tanggal_mulai);
-        const dow = startDate.getDay();
+        const dow = startDate.getUTCDay();
         const diffMon = dow === 0 ? -6 : 1 - dow;
         const monday = new Date(startDate);
-        monday.setDate(monday.getDate() + diffMon);
+        monday.setUTCDate(monday.getUTCDate() + diffMon);
         const sunday = new Date(monday);
-        sunday.setDate(sunday.getDate() + 6);
+        sunday.setUTCDate(sunday.getUTCDate() + 6);
 
         const monStr = monday.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
         const sunStr = sunday.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
@@ -191,7 +191,7 @@ const getRekapAbsensiSiswaMonthly = async (req, res) => {
         let current = new Date(tglMulai);
         while (current <= tglAkhir) {
             const endOfWeek = new Date(current);
-            endOfWeek.setDate(endOfWeek.getDate() + (6 - endOfWeek.getDay()));
+            endOfWeek.setUTCDate(endOfWeek.getUTCDate() + (6 - endOfWeek.getUTCDay()));
             const akhirMinggu = endOfWeek > tglAkhir ? tglAkhir : endOfWeek;
             const recMinggu = records.filter((r) => {
                 const t = new Date(r.tanggal);
@@ -204,7 +204,7 @@ const getRekapAbsensiSiswaMonthly = async (req, res) => {
                 ...hitungStatistikFinal(recMinggu)
             });
             current = new Date(akhirMinggu);
-            current.setDate(current.getDate() + 1);
+            current.setUTCDate(current.getUTCDate() + 1);
             mingguKe++;
         }
 
@@ -443,7 +443,7 @@ const getRekapAbsensiKelasMonthly = async (req, res) => {
         let current = new Date(tglMulai);
         while (current <= tglAkhir) {
             const endOfWeek = new Date(current);
-            endOfWeek.setDate(endOfWeek.getDate() + (6 - endOfWeek.getDay()));
+            endOfWeek.setUTCDate(endOfWeek.getUTCDate() + (6 - endOfWeek.getUTCDay()));
             const akhirMinggu = endOfWeek > tglAkhir ? tglAkhir : endOfWeek;
             const recMinggu = records.filter((r) => {
                 const t = new Date(r.tanggal);
@@ -456,7 +456,7 @@ const getRekapAbsensiKelasMonthly = async (req, res) => {
                 ...hitungStatistikFinal(recMinggu)
             });
             current = new Date(akhirMinggu);
-            current.setDate(current.getDate() + 1);
+            current.setUTCDate(current.getUTCDate() + 1);
             mingguKe++;
         }
 

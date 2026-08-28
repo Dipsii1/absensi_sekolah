@@ -1,3 +1,7 @@
+// Pastikan Node pakai zona waktu tetap (jalankan sebelum module pertama yang memakai Date).
+// Jika env TZ sudah diset (mis. di luar/docker), jangan timpa.
+process.env.TZ = process.env.TZ || 'Asia/Jakarta';
+
 var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
