@@ -2,6 +2,11 @@ const prisma = require("../config/prisma");
 const { formatDateTime, formatTime, formatJam, validateTimeFormat, validateHari } = require("../helper/indexUtils");
 const XLSX = require("xlsx");
 
+const createTimeDate = (time) => {
+    const [hour, minute] = time.split(":").map(Number);
+    return new Date(1970, 0, 1, hour, minute, 0, 0);
+};
+
 // get all jadwal
 const getAllJadwal = async (req, res) => {
     try {
@@ -165,15 +170,6 @@ const createJadwal = async (req, res) => {
             return res.status(404).json({ success: false, message: "Guru tidak ditemukan" });
         }
 
-        // Konversi jam
-        const createTimeDate = (time) => {
-            const [hour, minute] = time.split(":").map(Number);
-
-            const date = new Date(1970, 0, 1, hour, minute, 0, 0);
-
-            return date;
-        };
-
         const jamMulaiDate = createTimeDate(jam_mulai);
         const jamSelesaiDate = createTimeDate(jam_selesai);
 
@@ -191,12 +187,8 @@ const createJadwal = async (req, res) => {
         }
 
         const overlapCondition = {
-            jam_mulai: {
-                lt: jamSelesaiDate
-            },
-            jam_selesai: {
-                gt: jamMulaiDate
-            }
+            jam_mulai: { lt: jamSelesaiDate },
+            jam_selesai: { gt: jamMulaiDate }
         };
 
         // Cek konflik jadwal kelas
@@ -244,8 +236,8 @@ const createJadwal = async (req, res) => {
                 kelas_id: parseInt(kelas_id),
                 mapel_id: parseInt(mapel_id),
                 guru_id: parseInt(guru_id),
-                jam_mulai: new Date(`1970-01-01T${jamMulaiTime}`),
-                jam_selesai: new Date(`1970-01-01T${jamSelesaiTime}`)
+                jam_mulai: jamMulaiDate,
+                jam_selesai: jamSelesaiDate
             },
             include: {
                 kelas: { select: { kelas: true, jurusan: true } },
@@ -285,6 +277,7 @@ const updateJadwal = async (req, res) => {
     try {
         const { id } = req.params;
         const { hari, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
+        const jadwalId = parseInt(id);
 
         // Validasi field kosong
         if (!hari || !kelas_id || !mapel_id || !guru_id || !jam_mulai || !jam_selesai) {
@@ -315,7 +308,7 @@ const updateJadwal = async (req, res) => {
 
         // Cek jadwal ada
         const existingJadwal = await prisma.jadwal.findFirst({
-            where: { id: parseInt(id), deleted_at: null }
+            where: { id: jadwalId, deleted_at: null }
         });
         if (!existingJadwal) {
             return res.status(404).json({ success: false, message: "Jadwal tidak ditemukan" });
@@ -338,15 +331,6 @@ const updateJadwal = async (req, res) => {
             return res.status(404).json({ success: false, message: "Guru tidak ditemukan" });
         }
 
-        // Konversi jam
-        const createTimeDate = (time) => {
-            const [hour, minute] = time.split(":").map(Number);
-
-            const date = new Date(1970, 0, 1, hour, minute, 0, 0);
-
-            return date;
-        };
-
         const jamMulaiDate = createTimeDate(jam_mulai);
         const jamSelesaiDate = createTimeDate(jam_selesai);
 
@@ -364,17 +348,14 @@ const updateJadwal = async (req, res) => {
         }
 
         const overlapCondition = {
-            jam_mulai: {
-                lt: jamSelesaiDate
-            },
-            jam_selesai: {
-                gt: jamMulaiDate
-            }
+            jam_mulai: { lt: jamSelesaiDate },
+            jam_selesai: { gt: jamMulaiDate }
         };
 
-        // Cek konflik (exclude jadwal yang sedang diupdate)
+        // Cek konflik (exclude jadwal yang sedang diupdate dengan id: { not: jadwalId })
         const conflictKelas = await prisma.jadwal.findFirst({
             where: {
+                id: { not: jadwalId },
                 kelas_id: parseInt(kelas_id),
                 hari: hariNormalized,
                 deleted_at: null,
@@ -382,9 +363,9 @@ const updateJadwal = async (req, res) => {
             }
         });
 
-
         const conflictGuru = await prisma.jadwal.findFirst({
             where: {
+                id: { not: jadwalId },
                 guru_id: parseInt(guru_id),
                 hari: hariNormalized,
                 deleted_at: null,
@@ -401,14 +382,14 @@ const updateJadwal = async (req, res) => {
 
         // Update jadwal
         const updatedJadwal = await prisma.jadwal.update({
-            where: { id: parseInt(id) },
+            where: { id: jadwalId },
             data: {
                 hari: hariNormalized,
                 kelas_id: parseInt(kelas_id),
                 mapel_id: parseInt(mapel_id),
                 guru_id: parseInt(guru_id),
-                jam_mulai: new Date(`1970-01-01T${jamMulaiTime}`),
-                jam_selesai: new Date(`1970-01-01T${jamSelesaiTime}`),
+                jam_mulai: jamMulaiDate,
+                jam_selesai: jamSelesaiDate,
                 updated_at: new Date()
             },
             include: {
@@ -618,32 +599,25 @@ const importJadwal = async (req, res) => {
                 continue;
             }
 
-            const createTimeDate = (time) => {
-                const [hour, minute] = time.split(":").map(Number);
-
-                const date = new Date(1970, 0, 1, hour, minute, 0, 0);
-
-                return date;
-            };
-
-            const jamMulaiDate = createTimeDate(jam_mulai);
-            const jamSelesaiDate = createTimeDate(jam_selesai);
+            const jamMulaiDate = createTimeDate(jamMulai);
+            const jamSelesaiDate = createTimeDate(jamSelesai);
 
             const overlapCondition = {
-                jam_mulai: {
-                    lt: jamSelesaiDate
-                },
-                jam_selesai: {
-                    gt: jamMulaiDate
-                }
+                jam_mulai: { lt: jamSelesaiDate },
+                jam_selesai: { gt: jamMulaiDate }
+            };
+
+            const conflictWhereClause = {
+                hari,
+                deleted_at: null,
+                ...overlapCondition,
+                ...(id !== null && { id: { not: id } })
             };
 
             const conflictKelas = await prisma.jadwal.findFirst({
                 where: {
-                    kelas_id: parseInt(kelas_id),
-                    hari: hariNormalized,
-                    deleted_at: null,
-                    ...overlapCondition
+                    kelas_id: kelasRecord.id,
+                    ...conflictWhereClause
                 }
             });
             if (conflictKelas) {
@@ -654,10 +628,8 @@ const importJadwal = async (req, res) => {
 
             const conflictGuru = await prisma.jadwal.findFirst({
                 where: {
-                    guru_id: parseInt(guru_id),
-                    hari: hariNormalized,
-                    deleted_at: null,
-                    ...overlapCondition
+                    guru_id: guruRecord.id,
+                    ...conflictWhereClause
                 }
             });
             if (conflictGuru) {
