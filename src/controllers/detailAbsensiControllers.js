@@ -1,6 +1,6 @@
 const prisma = require("../config/prisma");
 const { StatusAbsensi } = require("@prisma/client");
-const { formatDate, formatTime, formatDateTime, formatJam, validateHari, getHariFromDate, parseTanggal, getTodayWIB, getWeekNumber } = require("../helper/indexUtils");
+const { formatDate, formatTime, formatDateTime, formatJam, validateHari, getHariFromDate, parseTanggal, getTodayWIB, getWeekNumber, nowAsDbTime } = require("../helper/indexUtils");
 const { simpanFinalAbsensi } = require("../services/finalAbsensi");
 
 const NAMA_BULAN = [
@@ -12,16 +12,14 @@ const getActiveJadwalGuru = async (guru_id) => {
     const now = new Date();
     const hari = getHariFromDate(now);
 
-    const jamWIBStr = now.toLocaleTimeString("en-GB", { timeZone: "Asia/Jakarta" });
-    const jamWIB = new Date(`1970-01-01T${jamWIBStr}Z`);
+    const jamSekarangDb = nowAsDbTime();
 
     return prisma.jadwal.findFirst({
         where: {    
             guru_id,
             hari,
-            jam_mulai: { lte: jamWIB },
-            jam_selesai: { gte: jamWIB },
-            deleted_at: null
+            jam_mulai: { lte: jamSekarangDb },
+            jam_selesai: { gte: jamSekarangDb },
         },
         include: {
             kelas: {

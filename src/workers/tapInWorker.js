@@ -21,7 +21,6 @@ const tapInWorker = new Worker('tap-in', async (job) => {
             siswa_id: siswaId,
             tanggal: todayDate,
             tap_in: { not: null },
-            deleted_at: null
         }
     })
 

@@ -40,7 +40,6 @@ const tapOutWorker = new Worker('tap-out', async (job) => {
         where: {
             kelas_id: kelasId,
             hari: hariIni,
-            deleted_at: null
         },
         include: { mata_pelajaran: true },
         orderBy: { jam_selesai: 'desc' }

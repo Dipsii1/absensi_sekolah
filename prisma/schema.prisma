@@ -270,13 +270,11 @@ model Jadwal {
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
-  deleted_at DateTime? @db.Timestamptz(6)
 
   @@unique([kelas_id, hari, jam_mulai])
   @@index([guru_id, hari])
   @@index([hari, kelas_id])
   @@index([mapel_id])
-  @@index([deleted_at])
   @@map("jadwal")
 }
 

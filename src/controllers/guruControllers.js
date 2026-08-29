@@ -381,7 +381,6 @@ const deleteGuru = async (req, res) => {
         const relatedJadwal = await prisma.jadwal.findFirst({
             where: {
                 guru_id: parseInt(id),
-                deleted_at: null,
             },
         });
 

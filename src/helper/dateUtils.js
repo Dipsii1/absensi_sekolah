@@ -45,12 +45,9 @@ const formatJam = (date) => {
     if (!date) return null;
     const d = new Date(date);
     if (Number.isNaN(d.getTime())) return null;
-    return d.toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Jakarta'
-    });
+    const h = String(d.getUTCHours()).padStart(2, '0');
+    const m = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
 };
 
 // String tanggal hari ini (WIB) dalam format en-CA "YYYY-MM-DD"
@@ -66,11 +63,18 @@ const wibTodayAt = (time) => {
         [h, m] = time.split(':').map(Number);
     } else {
         const d = new Date(time);
-        h = d.getUTCHours();
-        m = d.getUTCMinutes();
+        const wibStr = d.toLocaleTimeString('en-GB', { timeZone: WIB, hour12: false }); // "HH:MM:SS"
+        [h, m] = wibStr.split(':').map(Number);
     }
     if (Number.isNaN(h) || Number.isNaN(m)) return null;
     return new Date(`${_todayWIBDateStr()}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000+07:00`);
+};
+
+const nowAsDbTime = () => {
+    const now = new Date();
+    const wibStr = now.toLocaleTimeString('en-GB', { timeZone: WIB, hour12: false }); // "HH:MM:SS" WIB
+    const [h, m, s] = wibStr.split(':').map(Number);
+    return new Date(Date.UTC(1970, 0, 1, h - 7, m, s, 0));
 };
 
 // Ambil string tanggal hari ini dalam WIB "YYYY-MM-DD"
@@ -133,4 +137,5 @@ module.exports = {
     getTanggalRangeWIB,
     getWeekNumber,
     getNowWIB,
+    nowAsDbTime, 
 };

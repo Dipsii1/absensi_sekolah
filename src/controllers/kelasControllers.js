@@ -505,7 +505,6 @@ const deleteKelas = async (req, res) => {
         const hasJadwal = await prisma.jadwal.count({
             where: {
                 kelas_id: parseInt(id),
-                deleted_at: null
             }
         });
 
