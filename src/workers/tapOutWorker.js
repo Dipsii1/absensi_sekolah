@@ -5,6 +5,10 @@ const { sendTapOutNotification } = require('../services/telegramServices')
 const { formatDate, formatTime, formatJam, getTodayStrWIB, toDateOnly, wibTodayAt } = require('../helper/indexUtils')
 const { getHariFromDate } = require('../helper/daysUtils')
 
+// Minimal gap antara tap in dan tap out, supaya siswa tidak bisa tap in lalu langsung tap out
+const MIN_GAP_MINUTES = 30
+const MIN_GAP_MS = MIN_GAP_MINUTES * 60 * 1000
+
 const tapOutWorker = new Worker('tap-out', async (job) => {
     const { siswaId, kelasId, siswaData, receivedAt } = job.data
 
@@ -33,6 +37,18 @@ const tapOutWorker = new Worker('tap-out', async (job) => {
     if (absensiHariIni.tap_out) {
         console.log(`[TapOut Worker] Siswa ${siswaId} sudah tap out, skip.`)
         return { skipped: true, reason: 'already_tapped_out' }
+    }
+
+
+    // Validasi jarak waktu tap in dan tap out, minimal 30 menit
+    const receivedAtTime = new Date(receivedAt)
+    const gapMs = receivedAtTime.getTime() - new Date(absensiHariIni.tap_in).getTime()
+    if (gapMs < MIN_GAP_MS) {
+        const gapMinutes = Math.max(0, Math.floor(gapMs / 60000))
+        throw new Error(
+            `Belum bisa tap out, baru ${gapMinutes} menit sejak tap in. ` +
+            `Tunggu minimal ${MIN_GAP_MINUTES} menit sejak tap in.`
+        )
     }
 
     // Validasi ke jadwal terakhir hari ini — tap out hanya sah di jam_selesai jadwal terakhir
