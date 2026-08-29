@@ -33,7 +33,6 @@ const tapInWorker = new Worker('tap-in', async (job) => {
         where: {
             kelas_id: kelasId,
             hari: hariIni,
-            deleted_at: null
         },
         include: { mata_pelajaran: true },
         orderBy: { jam_mulai: 'asc' }
