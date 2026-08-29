@@ -5,6 +5,39 @@ const XLSX = require("xlsx");
 const createTimeDate = (time) => {
     const [hour, minute] = time.split(":").map(Number);
     return new Date(1970, 0, 1, hour, minute, 0, 0);
+}
+
+
+const normalizeJamValue = (raw) => {
+    if (raw === null || raw === undefined || raw === "") return "";
+
+    // Sudah Date object (kalau reader di-set cellDates: true)
+    if (raw instanceof Date && !isNaN(raw.getTime())) {
+        const hh = String(raw.getHours()).padStart(2, "0");
+        const mm = String(raw.getMinutes()).padStart(2, "0");
+        return `${hh}:${mm}`;
+    }
+
+    // Angka serial Excel (waktu = pecahan hari, mis. 07:00 -> 0.291666...)
+    if (typeof raw === "number") {
+        const fractionOfDay = raw % 1; // buang bagian tanggal kalau ada
+        const totalMinutes = Math.round(fractionOfDay * 24 * 60);
+        const hh = String(Math.floor(totalMinutes / 60) % 24).padStart(2, "0");
+        const mm = String(totalMinutes % 60).padStart(2, "0");
+        return `${hh}:${mm}`;
+    }
+
+    // String biasa, mis. "07:00" atau "7.00" — normalisasi titik jadi titik dua
+    let str = String(raw).trim();
+    str = str.replace(".", ":");
+    const match = str.match(/^(\d{1,2}):(\d{1,2})$/);
+    if (match) {
+        const hh = match[1].padStart(2, "0");
+        const mm = match[2].padStart(2, "0");
+        return `${hh}:${mm}`;
+    }
+
+    return str;
 };
 
 // get all jadwal
@@ -498,8 +531,8 @@ const importJadwal = async (req, res) => {
             const jurusan = String(row["JURUSAN"] || "").trim();
             const namaMapel = String(row["NAMA_MAPEL"] || "").trim();
             const namaGuru = String(row["NAMA_GURU"] || "").trim();
-            const jamMulai = String(row["JAM_MULAI"] || "").trim();
-            const jamSelesai = String(row["JAM_SELESAI"] || "").trim();
+            const jamMulai = normalizeJamValue(row["JAM_MULAI"]);
+            const jamSelesai = normalizeJamValue(row["JAM_SELESAI"]);
 
             if (!hari && !kelasStr && !namaMapel && !namaGuru) continue;
 
