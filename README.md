@@ -472,6 +472,153 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 ---
 
-## 👤 Developer
+## � Environment Variables Reference
 
-**Dipsii1** — [github.com/Dipsii1](https://github.com/Dipsii1)
+| Variabel | Tipe | Deskripsi | Contoh |
+|----------|------|-----------|--------|
+| `DATABASE_URL` | String | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/absensi_sekolah` |
+| `JWT_SECRET` | String | Secret key untuk JWT signing | `your_super_secret_key_here` |
+| `TELEGRAM_BOT_TOKEN` | String | Token dari Telegram Bot API | `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11` |
+| `TELEGRAM_GROUP_ID` | String | ID grup Telegram untuk notifikasi | `-1001234567890` |
+| `PORT` | Number | Port server Express | `3000` |
+| `REDIS_HOST` | String | Host Redis | `127.0.0.1` |
+| `REDIS_PORT` | Number | Port Redis | `6379` |
+| `NODE_ENV` | String | Environment (development/production) | `development` |
+
+---
+
+## 🐛 Troubleshooting
+
+### Error: `ECONNREFUSED` (Database Connection Failed)
+- Pastikan PostgreSQL berjalan
+- Cek `DATABASE_URL` di `.env` sesuai dengan kredensial lokal
+- Jalankan `npx prisma db push` untuk setup schema
+
+### Error: Redis Connection Failed
+- Pastikan Redis berjalan di host & port yang benar
+- Linux/WSL: `sudo service redis-server start`
+- Docker: `docker run -p 6379:6379 redis:7`
+
+### Queue/Worker Error
+- Pastikan Redis sudah running
+- Cek BullMQ dan ioredis dependency terinstall: `npm install`
+- Review log di worker untuk detail error
+
+### JWT Token Invalid/Expired
+- Pastikan `JWT_SECRET` sama di semua instance
+- Token default expired dalam 24 jam, buat token baru dengan login
+- Clear browser cache/cookies
+
+### RFID Tap-In/Tap-Out Tidak Terproses
+- Cek Redis connection
+- Cek worker process berjalan: `pm2 logs tap-in-worker`
+- Review failed jobs di BullMQ dashboard
+
+### Import Data Excel Gagal
+- Pastikan format Excel sesuai dengan template yang disediakan
+- Cek kolom headers
+- Lihat log upload di server untuk detail error
+
+---
+
+## 📦 Deployment
+
+### Production Build
+```bash
+# Install dependencies
+npm install --production
+
+# Generate Prisma Client
+npx prisma generate
+
+# Run migrations
+npx prisma migrate deploy
+
+# Start server
+npm start
+```
+
+### Using PM2
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Start application
+pm2 start app.js --name "absensi-sekolah"
+
+# Start with ecosystem config
+pm2 start ecosystem.config.js
+
+# View logs
+pm2 logs absensi-sekolah
+```
+
+### Docker (Optional)
+```bash
+# Build image
+docker build -t absensi-sekolah .
+
+# Run container
+docker run -p 3000:3000 \
+  -e DATABASE_URL="..." \
+  -e REDIS_HOST="redis" \
+  absensi-sekolah
+```
+
+---
+
+## 🤝 Contributing
+
+Kontribusi sangat diterima! Untuk berkontribusi:
+
+1. Fork repository ini
+2. Buat feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add AmazingFeature'`)
+4. Push ke branch (`git push origin feature/AmazingFeature`)
+5. Buka Pull Request
+
+**Guidelines:**
+- Follow kode style yang sudah ada
+- Test fitur baru sebelum PR
+- Update dokumentasi jika diperlukan
+- Satu PR untuk satu fitur/bugfix
+
+---
+
+## 📄 License
+
+Project ini dilisensikan di bawah **MIT License**. Lihat file [LICENSE](LICENSE) untuk detail lebih lanjut.
+
+---
+
+## 📞 Support & Contact
+
+Untuk pertanyaan, bug report, atau saran:
+- 📧 Email: [contact info]
+- 🐙 GitHub Issues: [Submit Issue](https://github.com/Dipsii1/absensi_sekolah/issues)
+- 💬 Telegram: [Hubungi Admin]
+
+---
+
+## 📝 Changelog
+
+### v0.0.0 (Current)
+- ✅ Core features: Auth, Users, Siswa, Guru, Kelas
+- ✅ RFID attendance system dengan queue processing
+- ✅ Telegram notifications
+- ✅ Excel export functionality
+- ✅ Role-based access control
+- ✅ Final attendance finalization
+- ✅ Status request workflow
+
+---
+
+## 👤 Developer & Team
+
+**Primary Developer:** Dipsii1  
+**GitHub:** [@Dipsii1](https://github.com/Dipsii1)
+
+---
+
+**Last Updated:** 30 Agustus 2026  
+**Status:** Active Development 🚀
