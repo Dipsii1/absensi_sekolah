@@ -6,7 +6,7 @@ const { formatDate, formatTime, formatJam, getTodayStrWIB, toDateOnly, wibTodayA
 const { getHariFromDate } = require('../helper/daysUtils')
 
 // Minimal gap antara tap in dan tap out, supaya siswa tidak bisa tap in lalu langsung tap out
-const MIN_GAP_MINUTES = 30
+const MIN_GAP_MINUTES = 5
 const MIN_GAP_MS = MIN_GAP_MINUTES * 60 * 1000
 
 const tapOutWorker = new Worker('tap-out', async (job) => {
