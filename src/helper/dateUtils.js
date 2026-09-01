@@ -53,18 +53,14 @@ const formatJam = (date) => {
 // String tanggal hari ini (WIB) dalam format en-CA "YYYY-MM-DD"
 const _todayWIBDateStr = () => new Date().toLocaleDateString('en-CA', { timeZone: WIB });
 
-// Bangun real UTC-instant "hari ini, HH:MM WIB" dari:
-//  - string "HH:MM"   (wall-clock WIB)
-//  - Date @db.Time    (epoch UTC, UTC-hour = wall-clock WIB)
-// Dipakai untuk membandingkan tap_in/tap_out vs jadwal dalam zona waktu yang sama.
 const wibTodayAt = (time) => {
     let h, m;
     if (typeof time === 'string') {
         [h, m] = time.split(':').map(Number);
     } else {
         const d = new Date(time);
-        const wibStr = d.toLocaleTimeString('en-GB', { timeZone: WIB, hour12: false }); // "HH:MM:SS"
-        [h, m] = wibStr.split(':').map(Number);
+        h = d.getUTCHours();
+        m = d.getUTCMinutes();
     }
     if (Number.isNaN(h) || Number.isNaN(m)) return null;
     return new Date(`${_todayWIBDateStr()}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000+07:00`);
