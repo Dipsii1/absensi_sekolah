@@ -430,7 +430,7 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `POST` | `/final-absensi/siswa` | 🔒 | Finalisasi 1 siswa secara manual |
 | `POST` | `/final-absensi/kelas/:kelas_id` | 🔒 | Finalisasi seluruh siswa dalam 1 kelas |
 | `POST` | `/final-absensi/semua-kelas` | 🔒 | Finalisasi semua kelas aktif |
-| `POST` | `/final-absensi/all` | 🔒 | `ADMIN` | Finalisasi seluruh siswa yang sudah tap-in pada tanggal tertentu |
+| `POST` | `/final-absensi/all` | 🔒 | `ADMIN` | Finalisasi seluruh siswa pada tanggal tertentu (siswa belum tap-in masuk sebagai Alpha) |
 
 ---
 

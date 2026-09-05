@@ -208,7 +208,7 @@ const getAllFinalAbsensi = async (req, res) => {
     const includeEmptyRows = include_empty !== "false";
 
     // Auto-finalize for queried dates that have no records yet
-    if (dateWhere && !includeEmptyRows) {
+    if (dateWhere) {
       if (tanggal) {
         await autoFinalizeIfNeeded([parseTanggal(tanggal)]);
       } else if (tanggal_mulai && tanggal_akhir) {
@@ -446,7 +446,7 @@ const finalisasiSemuaKelas = async (req, res) => {
   }
 };
 
-// finalisasi semua siswa yang sudah tap in (Admin)
+// finalisasi semua siswa aktif (Admin) - siswa yang belum tap in akan berstatus Alpha
 const finalisasiSemuaSiswa = async (req, res) => {
   try {
     const { tanggal } = req.body;
@@ -457,19 +457,23 @@ const finalisasiSemuaSiswa = async (req, res) => {
 
     const tanggalParsed = parseTanggal(tanggal);
 
-    // Ambil semua siswa_id yang sudah tap in pada tanggal ini
-    const siswaTapIn = await prisma.absensiSiswa.groupBy({
-      by: ["siswa_id"],
+    // Ambil semua siswa aktif yang memiliki kelas_id
+    const siswaList = await prisma.siswa.findMany({
       where: {
-        tanggal: tanggalParsed,
+        status_siswa: "Active",
         deleted_at: null,
+        kelas_id: { not: null },
+      },
+      select: {
+        id: true,
+        kelas_id: true,
       },
     });
 
-    if (siswaTapIn.length === 0) {
+    if (siswaList.length === 0) {
       return res.status(200).json({
         success: true,
-        message: "Tidak ada siswa yang tap in pada tanggal tersebut",
+        message: "Tidak ada siswa aktif ditemukan",
         data: {
           tanggal: formatDate(tanggalParsed),
           total_siswa: 0,
@@ -480,34 +484,11 @@ const finalisasiSemuaSiswa = async (req, res) => {
       });
     }
 
-    const siswaIds = siswaTapIn.map((item) => item.siswa_id);
-
-    // Ambil kelas_id masing-masing siswa
-    const siswaList = await prisma.siswa.findMany({
-      where: {
-        id: { in: siswaIds },
-        deleted_at: null,
-      },
-      select: {
-        id: true,
-        kelas_id: true,
-      },
-    });
-
     let berhasil = 0;
     let gagal = 0;
     const detailGagal = [];
 
     for (const siswa of siswaList) {
-      if (!siswa.kelas_id) {
-        gagal++;
-        detailGagal.push({
-          siswa_id: siswa.id,
-          alasan: "Siswa tidak memiliki kelas_id",
-        });
-        continue;
-      }
-
       try {
         const record = await simpanFinalAbsensi(
           siswa.id,
@@ -521,7 +502,7 @@ const finalisasiSemuaSiswa = async (req, res) => {
           gagal++;
           detailGagal.push({
             siswa_id: siswa.id,
-            alasan: "Tidak ada data absensi untuk siswa pada tanggal tersebut",
+            alasan: "Gagal memproses final absensi",
           });
         }
       } catch (err) {
@@ -535,10 +516,10 @@ const finalisasiSemuaSiswa = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Finalisasi semua siswa yang sudah tap in selesai",
+      message: "Finalisasi seluruh siswa selesai",
       data: {
         tanggal: formatDate(tanggalParsed),
-        total_siswa: siswaIds.length,
+        total_siswa: siswaList.length,
         berhasil,
         gagal,
         detail_gagal: detailGagal,
