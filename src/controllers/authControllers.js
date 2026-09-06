@@ -232,7 +232,220 @@ const extractRoles = (userRole) => userRole?.map(ur => ur.role) ?? [];
 //     }
 // };
 
-// Login
+const moodleRestCall = async (token, wsfunction, params = {}) => {
+    const url = new URL(`${process.env.MOODLE_BASE_URL}/webservice/rest/server.php`);
+    url.searchParams.set("wstoken", token);
+    url.searchParams.set("wsfunction", wsfunction);
+    url.searchParams.set("moodlewsrestformat", "json");
+
+    Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.set(key, value);
+    });
+
+    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) });
+    const data = await response.json();
+
+    if (data && data.exception) {
+        throw new Error(`[${data.errorcode}] ${data.message}`);
+    }
+
+    return data;
+};
+
+// Helper: ambil nama asli siswa dari profil Moodle
+const getMoodleProfile = async (token) => {
+    try {
+        const siteInfo = await moodleRestCall(token, "core_webservice_get_site_info");
+        return { nama: siteInfo?.fullname || null };
+    } catch (err) {
+        console.error("Gagal ambil profil Moodle:", err.message);
+        return null;
+    }
+};
+
+// Login siswa - ROUTE HANDLER, langsung fetch ke Moodle di dalam sini
+const loginSiswa = async (req, res) => {
+    try {
+        const { username, password } = req.body;
+ 
+        if (!username || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "Username dan password wajib diisi",
+            });
+        }
+ 
+        let moodleData;
+ 
+        try {
+            const params = new URLSearchParams();
+            params.append("username", username);
+            params.append("password", password);
+            params.append("service", "moodle_mobile_app");
+ 
+            const moodleResponse = await fetch(`${process.env.MOODLE_BASE_URL}/login/token.php`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: params,
+                signal: AbortSignal.timeout(10000),
+            });
+ 
+            moodleData = await moodleResponse.json();
+        } catch (err) {
+            console.error("Moodle API Error:", err.message);
+            return res.status(502).json({
+                success: false,
+                message: "Tidak dapat menghubungi server Moodle",
+            });
+        }
+ 
+        if (!moodleData?.token) {
+            return res.status(401).json({
+                success: false,
+                message: moodleData?.error || "Username atau password salah",
+            });
+        }
+ 
+        // Role SISWA wajib ada di tabel roles sebelum siswa bisa login
+        const roleCache = await getRoleCache();
+        const siswaRole = roleCache["SISWA"];
+ 
+        if (!siswaRole) {
+            return res.status(500).json({
+                success: false,
+                message: "Role SISWA belum terdaftar di tabel roles. Tambahkan role ini dulu sebelum siswa bisa login.",
+            });
+        }
+ 
+        // username di form login siswa = NIPD
+        const nipd = username;
+ 
+        // Cari siswa berdasarkan NIPD (termasuk relasi user kalau sudah ada)
+        let siswa = await prisma.siswa.findFirst({
+            where: { nipd },
+            include: { user: true },
+        });
+ 
+        const hashedPassword = await bcrypt.hash(password, 10);
+ 
+        if (!siswa) {
+            // Ambil nama asli dari profil Moodle (kalau tersedia)
+            const moodleProfile = await getMoodleProfile(moodleData.token)
+
+            // Jika siswa belum ada, buat baru (siswa + user) dalam satu transaksi
+            const result = await prisma.$transaction(async (tx) => {
+                const siswaBaru = await tx.siswa.create({
+                    data: {
+                        nama: moodleProfile?.nama || nipd,
+                        nisn: `NISN-${nipd}`,
+                        nipd,
+                        nik: `NIK-${nipd}`,
+                        tempat_lahir: "-",
+                        tgl_lahir: new Date("2000-01-01"),
+                        jenis_kelamin: "L",
+                        agama: "-",
+                        jurusan: "-",
+                    },
+                });
+ 
+                const userBaru = await tx.user.create({
+                    data: {
+                        username: nipd,
+                        password: hashedPassword,
+                        siswa_id: siswaBaru.id,
+                        userRole: {
+                            create: [{ role_id: siswaRole.id }],
+                        },
+                    },
+                });
+ 
+                return { siswaBaru, userBaru };
+            });
+ 
+            siswa = { ...result.siswaBaru, user: result.userBaru };
+        } else if (!siswa.user) {
+            // Siswa ada tapi belum punya akun user -> buat baru
+            const userBaru = await prisma.user.create({
+                data: {
+                    username: nipd,
+                    password: hashedPassword,
+                    siswa_id: siswa.id,
+                    userRole: {
+                        create: [{ role_id: siswaRole.id }],
+                    },
+                },
+            });
+ 
+            siswa.user = userBaru;
+        } else if (siswa.user.deleted_at !== null) {
+            // Akun ada tapi soft-deleted -> restore
+            siswa.user = await prisma.user.update({
+                where: { id: siswa.user.id },
+                data: {
+                    deleted_at: null,
+                    password: hashedPassword,
+                },
+            });
+ 
+            await prisma.userRole.deleteMany({ where: { user_id: siswa.user.id } });
+            await prisma.userRole.create({
+                data: {
+                    user_id: siswa.user.id,
+                    role_id: siswaRole.id,
+                },
+            });
+ 
+            invalidateRoleCache();
+        }
+        // Jika user sudah ada dan tidak deleted -> lanjut login normal, tidak ada aksi tambahan
+ 
+        const userWithRoles = await prisma.user.findFirst({
+            where: { id: siswa.user.id },
+            select: userSelect,
+        });
+ 
+        const roles = extractRoles(userWithRoles.userRole);
+ 
+        const accessToken = jwt.sign(
+            {
+                id: userWithRoles.id,
+                username: userWithRoles.username,
+                role_ids: roles.map((r) => r.id),
+                role_names: roles.map((r) => r.name.toUpperCase()),
+                siswa_id: siswa.id,
+                moodle_token: moodleData.token,
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "24h" }
+        );
+ 
+        const { password: _pw, ...userData } = userWithRoles;
+ 
+        return res.status(200).json({
+            success: true,
+            message: "Login berhasil",
+            data: {
+                user: {
+                    ...userData,
+                    roles,
+                },
+                accessToken,
+                login_source: "MOODLE",
+            },
+        });
+    } catch (error) {
+        console.error("Error in loginSiswa:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message,
+        });
+    }
+};
+
+// Login guru
 const login = async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -548,6 +761,7 @@ const me = async (req, res) => {
 
 module.exports = {
     // register,
+    loginSiswa,
     login,
     logout,
     me,

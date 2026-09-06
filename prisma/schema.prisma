@@ -69,6 +69,9 @@ model User {
   guru_id Int?  @unique
   guru    Guru? @relation(fields: [guru_id], references: [id], onDelete: SetNull)
 
+  siswa_id String? @unique @db.Uuid
+  siswa    Siswa?  @relation(fields: [siswa_id], references: [id], onDelete: SetNull)
+
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
@@ -126,6 +129,7 @@ model Siswa {
   absensi           AbsensiSiswa[]
   permintaan_status PermintaanStatusAbsensi[]
   final_absensi     FinalAbsensi[]
+  user              User?
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)

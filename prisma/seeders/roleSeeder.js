@@ -7,6 +7,7 @@ module.exports = async (prisma) => {
         { name: "GURU" },
         { name: "WALAS" },
         { name: "KESISWAAN" },
+        { name: "SISWA" },
     ];
 
     const roleMap = {};

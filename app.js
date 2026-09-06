@@ -28,6 +28,7 @@ var statusRequestRoutes = require('./src/routes/statusRequestRoutes');
 var finalAbsensi = require ('./src/routes/finalAbsensiRoutes');
 var rekapRoutes = require('./src/routes/rekapRoutes');
 var exportRoutes = require('./src/routes/exportRoutes');
+var moodleRoutes = require('./src/routes/moodleRoutes');
 
 var app = express();
 
@@ -70,6 +71,7 @@ app.use('/api/v1/status-request', statusRequestRoutes);
 app.use('/api/v1/final-absensi', finalAbsensi);
 app.use('/api/v1/rekap', rekapRoutes);
 app.use('/api/v1/export', exportRoutes);
+app.use('/api/v1/moodle', moodleRoutes);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
@@ -83,6 +85,11 @@ app.use(function (err, req, res, next) {
 
   res.status(err.status || 500);
   res.render('error');
+});
+
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log(`Server running on port ${process.env.PORT || 3000}`);
 });
 
 
