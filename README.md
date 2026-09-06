@@ -249,6 +249,7 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `GURU` | Input absensi per jadwal pelajaran |
 | `WALAS` | Wali kelas — input & pratinjau absensi per kelas |
 | `KESISWAAN` | Rekap absensi, finalisasi, & ekspor (wajib Pokja) |
+| `SISWA` | Melihat profil, jadwal, dan rekap absensi pribadi |
 
 ---
 
@@ -263,9 +264,10 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 | Method | Endpoint | Auth | Deskripsi |
 |--------|----------|------|-----------|
-| `POST` | `/auth/login` | ❌ | Login user, mengembalikan JWT token |
+| `POST` | `/auth/login` | ❌ | Login user (staff/guru via YSBO atau lokal) |
+| `POST` | `/auth/moodle-login` | ❌ | Login siswa via Moodle, mengembalikan JWT + data siswa |
 | `POST` | `/auth/logout` | 🔒 | Logout & invalidasi sesi |
-| `GET` | `/auth/me` | 🔒 | Ambil data user yang sedang login |
+| `GET` | `/auth/me` | 🔒 | Ambil data user yang sedang login (termasuk relasi `siswa`, `kelas`, `rfid` bila ada) |
 
 ---
 
@@ -396,16 +398,17 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 ### ✅ Absensi Siswa
 
-| Method | Endpoint | Auth | Deskripsi |
-|--------|----------|------|-----------|
-| `POST` | `/absensi-siswa/tap-in` | ❌ | Catat absensi masuk via RFID (diproses async via BullMQ) |
-| `POST` | `/absensi-siswa/tap-out` | ❌ | Catat absensi keluar via RFID (diproses async via BullMQ) |
-| `GET` | `/absensi-siswa` | 🔒 | Ambil semua data absensi |
-| `GET` | `/absensi-siswa/laporan/harian` | 🔒 | Laporan absensi harian |
-| `GET` | `/absensi-siswa/laporan/range` | 🔒 | Laporan absensi rentang tanggal |
-| `GET` | `/absensi-siswa/:id` | 🔒 | Ambil detail absensi |
-| `PUT` | `/absensi-siswa/:id` | 🔒 | Update data absensi |
-| `DELETE` | `/absensi-siswa/:id` | 🔒 | Hapus data absensi |
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `POST` | `/absensi-siswa/tap-in` | ❌ | — | Catat absensi masuk via RFID (diproses async via BullMQ) |
+| `POST` | `/absensi-siswa/tap-out` | ❌ | — | Catat absensi keluar via RFID (diproses async via BullMQ) |
+| `GET` | `/absensi-siswa` | 🔒 | Authenticated | Ambil semua data absensi (filter: `siswa_id`, `kelas_id`, `tanggal`, `status_tapin`) |
+| `GET` | `/absensi-siswa/laporan/harian` | 🔒 | Authenticated | Laporan absensi harian (filter: `tanggal`, `kelas_id`, `siswa_id`) |
+| `GET` | `/absensi-siswa/laporan/range` | 🔒 | Authenticated | Laporan absensi rentang tanggal (filter: `tanggal_mulai`, `tanggal_akhir`, `kelas_id`) |
+| `GET` | `/absensi-siswa/:id` | 🔒 | Authenticated | Ambil detail absensi |
+| `PUT` | `/absensi-siswa/:id` | 🔒 | Authenticated | Update data absensi |
+| `DELETE` | `/absensi-siswa/:id` | 🔒 | Authenticated | Hapus data absensi |
+| `GET` | `/absensi-siswa/rekap-saya` | 🔒 | `SISWA` | Rekap absensi pribadi siswa yang login (berdasarkan `siswa_id` dari JWT) |
 
 ---
 
@@ -610,6 +613,12 @@ Untuk pertanyaan, bug report, atau saran:
 - ✅ Role-based access control
 - ✅ Final attendance finalization
 - ✅ Status request workflow
+
+### v0.0.1 (Latest)
+- ✅ Login siswa via Moodle (`/auth/moodle-login`)
+- ✅ Endpoint profil siswa di `/auth/me` (relasi `siswa`, `kelas`, `kelas.walas`, `rfid`)
+- ✅ Filter `siswa_id` di `/absensi-siswa/laporan/harian`
+- ✅ Endpoint baru `/absensi-siswa/rekap-saya` khusus role SISWA (membaca dari `FinalAbsensi` berdasarkan JWT)
 
 ---
 

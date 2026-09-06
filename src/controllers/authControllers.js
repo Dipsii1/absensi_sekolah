@@ -29,6 +29,7 @@ const invalidateRoleCache = () => {
 const userSelect = {
     id: true,
     email: true,
+    username: true,
     userRole: {
         include: {
             role: {
@@ -48,6 +49,38 @@ const userSelect = {
             NIP: true,
             nama: true,
             nomor_telepon: true,
+        }
+    },
+    siswa_id: true,
+    siswa: {
+        select: {
+            id: true,
+            nama: true,
+            nisn: true,
+            nipd: true,
+            nik: true,
+            jenis_kelamin: true,
+            jurusan: true,
+            status_siswa: true,
+            kelas_id: true,
+            kelas: {
+                select: {
+                    id: true,
+                    kelas: true,
+                    jurusan: true,
+                    walas: {
+                        select: { id: true, nama: true }
+                    },
+                    tahun: {
+                        select: { tahun_ajaran: true, is_active: true }
+                    },
+                }
+            },
+            rfid: {
+                where: { is_active: true, deleted_at: null },
+                select: { id: true, uid_rfid: true },
+                take: 1,
+            },
         }
     },
     created_at: true,

@@ -1,9 +1,11 @@
 const prisma = require("../config/prisma");
 const { sendTapInNotification, sendTapOutNotification } = require("../services/telegramServices");
-const { formatDate, formatTime, formatDateTime, formatJam, getHariFromDate, getTodayStrWIB, toDateOnly, getTanggalRangeWIB } = require("../helper/indexUtils");
+const { formatDate, formatTime, formatDateTime, formatJam, getHariFromDate, getTodayStrWIB, toDateOnly, getTanggalRangeWIB, parseTanggal } = require("../helper/indexUtils");
 const { addTapInJob } = require("../queues/tapInQueue");
 const { addTapOutJob } = require("../queues/tapOutQueue");
 const { tapInQueueEvents, tapOutQueueEvents } = require("../helper/queueEvents");
+const { hitungStatistikFinal } = require("../helper/helperFinalAbsensi");
+
 
 const validateRfid = async (uid_rfid) => {
     if (!uid_rfid) return { error: { status: 400, message: "UID RFID harus terisi" } };
@@ -19,7 +21,7 @@ const validateRfid = async (uid_rfid) => {
     return { rfid };
 };
 
-const JOB_TIMEOUT_MS = 5000; // 5 detik, cukup karena tidak ada retry lagi
+const JOB_TIMEOUT_MS = 5000; // 5 detik
 
 // Tap In
 const tapIn = async (req, res) => {
@@ -400,7 +402,7 @@ const getLaporanRange = async (req, res) => {
 // Get laporan absensi harian
 const getLaporanHarian = async (req, res) => {
     try {
-        const { tanggal, kelas_id } = req.query;
+        const { tanggal, kelas_id, siswa_id } = req.query;
 
         if (!tanggal) {
             return res.status(400).json({
@@ -416,10 +418,18 @@ const getLaporanHarian = async (req, res) => {
             deleted_at: null
         };
 
+        if (siswa_id) {
+            whereCondition.siswa_id = siswa_id;
+        }
+
         if (kelas_id) {
-            whereCondition.siswa = {
-                kelas_id: parseInt(kelas_id)
-            };
+            if (whereCondition.siswa_id) {
+                // siswa_id already set — ignore kelas_id (more specific filter wins)
+            } else {
+                whereCondition.siswa = {
+                    kelas_id: parseInt(kelas_id)
+                };
+            }
         }
 
         const absensiList = await prisma.absensiSiswa.findMany({
@@ -643,6 +653,87 @@ const deleteAbsensi = async (req, res) => {
     }
 };
 
+const getRekapSiswaSaya = async (req, res) => {
+    try {
+        const siswaId = req.user?.siswa_id;
+
+        if (!siswaId) {
+            return res.status(403).json({
+                success: false,
+                message: "Akun ini tidak terkait dengan data siswa"
+            });
+        }
+
+        let { tanggal_mulai, tanggal_akhir, limit } = req.query;
+
+        const whereCondition = {
+            siswa_id: siswaId,
+            deleted_at: null,
+        };
+
+        if (tanggal_mulai && tanggal_akhir) {
+            whereCondition.tanggal = {
+                gte: parseTanggal(tanggal_mulai),
+                lte: parseTanggal(tanggal_akhir),
+            };
+        }
+
+        const lim = limit ? parseInt(limit) : 20;
+
+        const records = await prisma.finalAbsensi.findMany({
+            where: whereCondition,
+            orderBy: { tanggal: "desc" },
+            take: lim,
+            select: {
+                tanggal: true,
+                status_final: true,
+                total_hadir: true,
+                total_izin: true,
+                total_sakit: true,
+                total_alpha: true,
+                total_mapel: true,
+                is_finalized: true,
+                finalized_at: true,
+            },
+        });
+
+        if (!records.length) {
+            return res.status(404).json({
+                success: false,
+                message: "Belum ada data absensi yang tersedia"
+            });
+        }
+
+        const statistik = hitungStatistikFinal(records);
+
+        return res.status(200).json({
+            success: true,
+            message: "Berhasil mendapatkan rekap absensi pribadi",
+            data: {
+                statistik,
+                riwayat: records.map((r) => ({
+                    tanggal: formatDate(r.tanggal),
+                    status_final: r.status_final,
+                    total_hadir: r.total_hadir,
+                    total_izin: r.total_izin,
+                    total_sakit: r.total_sakit,
+                    total_alpha: r.total_alpha,
+                    total_mapel: r.total_mapel,
+                    is_finalized: r.is_finalized,
+                    finalized_at: r.finalized_at ? formatDateTime(r.finalized_at) : null,
+                })),
+            }
+        });
+    } catch (error) {
+        console.error("getRekapSiswaSaya:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     tapIn,
     tapOut,
@@ -650,6 +741,7 @@ module.exports = {
     getAbsensiById,
     getLaporanHarian,
     getLaporanRange,
+    getRekapSiswaSaya,
     updateAbsensi,
     deleteAbsensi
 };
