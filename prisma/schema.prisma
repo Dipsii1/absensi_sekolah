@@ -264,8 +264,8 @@ model Jadwal {
   kelas_id    Int
   mapel_id    Int
   guru_id     Int
-  jam_mulai   DateTime @db.Time(6)
-  jam_selesai DateTime @db.Time(6)
+  jam_mulai   String @db.VarChar(5)
+  jam_selesai String @db.VarChar(5)
 
   kelas          Kelas                @relation(fields: [kelas_id], references: [id], onDelete: Restrict)
   mata_pelajaran MataPelajaran        @relation(fields: [mapel_id], references: [id], onDelete: Restrict)

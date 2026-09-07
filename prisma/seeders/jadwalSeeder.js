@@ -8,7 +8,7 @@ module.exports = async (prisma, kelasList, mapelList, guruList) => {
     if (!guruList?.length) throw new Error("❌ guruList kosong");
 
     const jam = (hh, mm) =>
-        new Date(`1970-01-01T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00Z`);
+        `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 
     const jadwalData = [
 
@@ -117,7 +117,6 @@ module.exports = async (prisma, kelasList, mapelList, guruList) => {
                 kelas_id: data.kelas_id,
                 hari: data.hari,
                 jam_mulai: data.jam_mulai,
-                deleted_at: null,
             },
         });
 
@@ -127,9 +126,7 @@ module.exports = async (prisma, kelasList, mapelList, guruList) => {
         const mapel = mapelList.find(m => m.id === data.mapel_id);
         const kelas = kelasList.find(k => k.id === data.kelas_id);
 
-        const hh = data.jam_mulai.getUTCHours().toString().padStart(2, "0");
-        const mm = data.jam_mulai.getUTCMinutes().toString().padStart(2, "0");
-
+        const [hh, mm] = data.jam_mulai.split(":");
         console.log(`  ✔ ${data.hari.padEnd(7)} ${hh}:${mm} | ${mapel.nama_mapel} | ${kelas.kelas} ${kelas.jurusan}`);
     }
 

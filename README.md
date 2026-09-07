@@ -379,6 +379,8 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `PUT` | `/jadwal/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Update jadwal |
 | `DELETE` | `/jadwal/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Hapus jadwal |
 
+> **Format `jam_mulai` / `jam_selesai`:** string `"HH:MM"` (mis. `"08:00"`). Nilai divalidasi lewat regex `HH:MM` dan di‑zero‑pad otomatis, sehingga komparasi bentrok jadwal (lexicographic) selaras dengan urutan kronologis.
+
 ---
 
 ### 📇 RFID
@@ -620,6 +622,14 @@ Untuk pertanyaan, bug report, atau saran:
 - ✅ Filter `siswa_id` di `/absensi-siswa/laporan/harian`
 - ✅ Endpoint baru `/absensi-siswa/rekap-saya` khusus role SISWA (membaca dari `FinalAbsensi` berdasarkan JWT)
 
+### v0.0.2
+- ✅ **Skema `jadwal`**: kolom `jam_mulai` / `jam_selesai` dikonversi dari `TIME` ke `VARCHAR(5)` bertipe string `"HH:MM"` — lebih mudah dipelihara dan konsisten dengan lapisan API (validasi `HH:MM`).
+  - Range query jadwal aktif (`getActiveJadwalGuru`) & overlap deteksi bentrok jadwal kini pakai komparasi string (zero-padded → leksikografi = kronologi).
+  - Helper `formatJam()` tangggu input string; helper `nowAsDbTime` (mati) diganti `nowWibTimeString()`.
+- 🐛 **Bugfix `auto-tapOut`**: filter `jadwal.deleted_at` dihapus (kolom tak ada di model → sebelumnya bikin auto tap-out selalu gagal diam‑diam).
+- 🐛 **Bugfix cron**: `autoFinalAbsensi` digerakkan `20:05` (dulu `20:00` bentrokan dengan `auto-tapOut` pukul `20:00`), agar finalisasi berjalan setelah tap‑out terisi.
+- 🧹 Seeder & test di‑update ke string `HH:MM`.
+
 ---
 
 ## 👤 Developer & Team
@@ -629,5 +639,5 @@ Untuk pertanyaan, bug report, atau saran:
 
 ---
 
-**Last Updated:** 30 Agustus 2026  
+**Last Updated:** 7 September 2026  
 **Status:** Active Development 🚀

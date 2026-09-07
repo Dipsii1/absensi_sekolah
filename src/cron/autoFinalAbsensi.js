@@ -3,8 +3,8 @@ const { finalisasiSemuaKelasAktif } = require("../services/finalAbsensi");
 const { getTodayStrWIB } = require("../helper/dateUtils");
 const prisma = require("../config/prisma");
 
-// Jalankan setiap hari jam 20:05 WIB (Senin-Sabtu)
-cron.schedule("0 20 * * 1-6", async () => {
+// Jalankan setiap hari jam 20:05 WIB (Senin-Sabtu) — setelah auto-tap-out pukul 20:00
+cron.schedule("5 20 * * 1-6", async () => {
     const todayStr = getTodayStrWIB();
 
     console.log(`[CRON AUTO-FINAL] Memulai finalisasi otomatis - ${todayStr}`);

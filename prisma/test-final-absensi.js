@@ -55,7 +55,7 @@ async function main() {
 
   // Find jadwal for this day of the week
   const jadwals = await prisma.jadwal.findMany({
-    where: { hari, deleted_at: null },
+    where: { hari },
     orderBy: [{ kelas_id: "asc" }, { jam_mulai: "asc" }],
   });
 

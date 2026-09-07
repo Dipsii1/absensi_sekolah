@@ -48,7 +48,23 @@ const tapInWorker = new Worker('tap-in', async (job) => {
     const tapInTime = new Date(receivedAt)
     const threshold = wibTodayAt(jadwalPertama.jam_mulai)
 
+    console.log('[DEBUG JADWAL]', {
+        jam_mulai: jadwalPertama.jam_mulai,
+        threshold: threshold?.toISOString?.(),
+        tap_in: tapInTime.toISOString(),
+        status: tapInTime <= threshold ? 'Tepat_Waktu' : 'Terlambat'
+    });
+
     const statusTapIn = tapInTime <= threshold ? 'Tepat_Waktu' : 'Terlambat'
+    console.log('[DEBUG TAP]', {
+        receivedAt,
+        tapInTime: tapInTime.toISOString(),
+        jadwalMulai: jadwalPertama.jam_mulai,
+        threshold: threshold.toISOString(),
+        status: tapInTime <= threshold
+            ? 'Tepat_Waktu'
+            : 'Terlambat'
+    })
 
     const absensi = await prisma.absensiSiswa.create({
         data: {
@@ -74,7 +90,7 @@ const tapInWorker = new Worker('tap-in', async (job) => {
     }
 
     console.log(`[TapIn Worker] Berhasil: siswa ${siswaId}, status: ${statusTapIn}`)
-    return { success: true, absensiId: absensi.id, statusTapIn,  tapInTime: absensi.tap_in }
+    return { success: true, absensiId: absensi.id, statusTapIn, tapInTime: absensi.tap_in }
 }, { connection, concurrency: 5 })
 
 tapInWorker.on('failed', (job, err) => {
@@ -86,5 +102,7 @@ tapInWorker.on('completed', (job, result) => {
         console.log(`[TapIn Worker] Job ${job.id} skipped: ${result.reason}`)
     }
 })
+
+
 
 module.exports = tapInWorker

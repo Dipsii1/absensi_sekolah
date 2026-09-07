@@ -29,7 +29,6 @@ cron.schedule("0 20 * * 1-6", async () => {
         const semuaJadwal = await prisma.jadwal.findMany({
             where: {
                 hari,
-                deleted_at: null,
                 kelas: {
                     deleted_at: null,
                     status_kelas: "Active",

@@ -2,11 +2,6 @@ const prisma = require("../config/prisma");
 const { formatDateTime, formatTime, formatJam, validateTimeFormat, validateHari } = require("../helper/indexUtils");
 const XLSX = require("xlsx");
 
-const createTimeDate = (time) => {
-    const [hour, minute] = time.split(":").map(Number);
-    return new Date(1970, 0, 1, hour, minute, 0, 0);
-}
-
 
 const normalizeJamValue = (raw) => {
     if (raw === null || raw === undefined || raw === "") return "";
@@ -140,7 +135,7 @@ const getAllJadwal = async (req, res) => {
 // create jadwal
 const createJadwal = async (req, res) => {
     try {
-        const { hari, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
+        let { hari, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
 
         if (!hari || !kelas_id || !mapel_id || !guru_id || !jam_mulai || !jam_selesai) {
             return res.status(400).json({
@@ -149,7 +144,11 @@ const createJadwal = async (req, res) => {
             });
         }
 
-        const hariNormalized = hari.trim().charAt(0).toUpperCase() + hari.trim().slice(1).toLowerCase();
+        hari = typeof hari === 'string' ? hari.trim() : hari;
+        jam_mulai = normalizeJamValue(jam_mulai);
+        jam_selesai = normalizeJamValue(jam_selesai);
+
+        const hariNormalized = hari.charAt(0).toUpperCase() + hari.slice(1).toLowerCase();
 
         if (!validateHari(hariNormalized)) {
             return res.status(400).json({
@@ -193,15 +192,9 @@ const createJadwal = async (req, res) => {
             return res.status(404).json({ success: false, message: "Guru tidak ditemukan" });
         }
 
-        const jamMulaiDate = createTimeDate(jam_mulai);
-        const jamSelesaiDate = createTimeDate(jam_selesai);
-
         const [jamMulaiHour, jamMulaiMinute] = jam_mulai.split(':').map(Number);
         const [jamSelesaiHour, jamSelesaiMinute] = jam_selesai.split(':').map(Number);
-        const totalMulai = jamMulaiHour * 60 + jamMulaiMinute;
-        const totalSelesai = jamSelesaiHour * 60 + jamSelesaiMinute;
-
-        if (totalSelesai <= totalMulai) {
+        if (jamSelesaiHour * 60 + jamSelesaiMinute <= jamMulaiHour * 60 + jamMulaiMinute) {
             return res.status(400).json({
                 success: false,
                 message: "Jam selesai harus setelah jam mulai"
@@ -209,8 +202,8 @@ const createJadwal = async (req, res) => {
         }
 
         const overlapCondition = {
-            jam_mulai: { lt: jamSelesaiDate },
-            jam_selesai: { gt: jamMulaiDate }
+            jam_mulai: { lt: jam_selesai },
+            jam_selesai: { gt: jam_mulai }
         };
 
         const conflictKelas = await prisma.jadwal.findFirst({
@@ -253,8 +246,8 @@ const createJadwal = async (req, res) => {
                 kelas_id: parseInt(kelas_id),
                 mapel_id: parseInt(mapel_id),
                 guru_id: parseInt(guru_id),
-                jam_mulai: jamMulaiDate,
-                jam_selesai: jamSelesaiDate
+                jam_mulai,
+                jam_selesai
             },
             include: {
                 kelas: { select: { kelas: true, jurusan: true } },
@@ -299,7 +292,7 @@ const createJadwal = async (req, res) => {
 const updateJadwal = async (req, res) => {
     try {
         const { id } = req.params;
-        const { hari, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
+        let { hari, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
         const jadwalId = parseInt(id);
 
         if (!hari || !kelas_id || !mapel_id || !guru_id || !jam_mulai || !jam_selesai) {
@@ -309,7 +302,11 @@ const updateJadwal = async (req, res) => {
             });
         }
 
-        const hariNormalized = hari.trim().charAt(0).toUpperCase() + hari.trim().slice(1).toLowerCase();
+        hari = typeof hari === 'string' ? hari.trim() : hari;
+        jam_mulai = normalizeJamValue(jam_mulai);
+        jam_selesai = normalizeJamValue(jam_selesai);
+
+        const hariNormalized = hari.charAt(0).toUpperCase() + hari.slice(1).toLowerCase();
 
         if (!validateHari(hariNormalized)) {
             return res.status(400).json({
@@ -348,15 +345,9 @@ const updateJadwal = async (req, res) => {
             return res.status(404).json({ success: false, message: "Guru tidak ditemukan" });
         }
 
-        const jamMulaiDate = createTimeDate(jam_mulai);
-        const jamSelesaiDate = createTimeDate(jam_selesai);
-
         const [jamMulaiHour, jamMulaiMinute] = jam_mulai.split(':').map(Number);
         const [jamSelesaiHour, jamSelesaiMinute] = jam_selesai.split(':').map(Number);
-        const totalMulai = jamMulaiHour * 60 + jamMulaiMinute;
-        const totalSelesai = jamSelesaiHour * 60 + jamSelesaiMinute;
-
-        if (totalSelesai <= totalMulai) {
+        if (jamSelesaiHour * 60 + jamSelesaiMinute <= jamMulaiHour * 60 + jamMulaiMinute) {
             return res.status(400).json({
                 success: false,
                 message: "Jam selesai harus setelah jam mulai"
@@ -364,8 +355,8 @@ const updateJadwal = async (req, res) => {
         }
 
         const overlapCondition = {
-            jam_mulai: { lt: jamSelesaiDate },
-            jam_selesai: { gt: jamMulaiDate }
+            jam_mulai: { lt: jam_selesai },
+            jam_selesai: { gt: jam_mulai }
         };
 
         const conflictKelas = await prisma.jadwal.findFirst({
@@ -400,8 +391,8 @@ const updateJadwal = async (req, res) => {
                 kelas_id: parseInt(kelas_id),
                 mapel_id: parseInt(mapel_id),
                 guru_id: parseInt(guru_id),
-                jam_mulai: jamMulaiDate,
-                jam_selesai: jamSelesaiDate,
+                jam_mulai: jam_mulai,
+                jam_selesai: jam_selesai,
                 updated_at: new Date()
             },
             include: {
@@ -611,12 +602,9 @@ const importJadwal = async (req, res) => {
                 continue;
             }
 
-            const jamMulaiDate = createTimeDate(jamMulai);
-            const jamSelesaiDate = createTimeDate(jamSelesai);
-
             const overlapCondition = {
-                jam_mulai: { lt: jamSelesaiDate },
-                jam_selesai: { gt: jamMulaiDate }
+                jam_mulai: { lt: jamSelesai },
+                jam_selesai: { gt: jamMulai }
             };
 
             const conflictWhereClause = {
@@ -651,17 +639,17 @@ const importJadwal = async (req, res) => {
 
             try {
                 if (id !== null) {
-                    await prisma.jadwal.update({
+                     await prisma.jadwal.update({
                         where: { id },
                         data: {
-                            hari,
-                            kelas_id: kelasRecord.id,
-                            mapel_id: mapelRecord.id,
-                            guru_id: guruRecord.id,
-                            jam_mulai: jamMulaiDate,
-                            jam_selesai: jamSelesaiDate,
-                            updated_at: new Date()
-                        }
+                             hari,
+                             kelas_id: kelasRecord.id,
+                             mapel_id: mapelRecord.id,
+                             guru_id: guruRecord.id,
+                             jam_mulai: jamMulai,
+                             jam_selesai: jamSelesai,
+                             updated_at: new Date()
+                         }
                     });
                 } else {
                     await prisma.jadwal.create({
@@ -670,8 +658,8 @@ const importJadwal = async (req, res) => {
                             kelas_id: kelasRecord.id,
                             mapel_id: mapelRecord.id,
                             guru_id: guruRecord.id,
-                            jam_mulai: jamMulaiDate,
-                            jam_selesai: jamSelesaiDate
+                            jam_mulai: jamMulai,
+                            jam_selesai: jamSelesai
                         }
                     });
                 }
