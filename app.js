@@ -1,5 +1,3 @@
-// Pastikan Node pakai zona waktu tetap (jalankan sebelum module pertama yang memakai Date).
-// Jika env TZ sudah diset (mis. di luar/docker), jangan timpa.
 process.env.TZ = process.env.TZ || 'Asia/Jakarta';
 
 var createError = require('http-errors');
@@ -29,11 +27,13 @@ var finalAbsensi = require ('./src/routes/finalAbsensiRoutes');
 var rekapRoutes = require('./src/routes/rekapRoutes');
 var exportRoutes = require('./src/routes/exportRoutes');
 var moodleRoutes = require('./src/routes/moodleRoutes');
+var kenaikanKelasRoutes = require('./src/routes/kenaikanKelasRoutes');
 
 var app = express();
 
 require('./src/workers/tapInWorker')
 require('./src/workers/tapOutWorker')
+require('./src/cron/tahunAjaran')
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -72,6 +72,7 @@ app.use('/api/v1/final-absensi', finalAbsensi);
 app.use('/api/v1/rekap', rekapRoutes);
 app.use('/api/v1/export', exportRoutes);
 app.use('/api/v1/moodle', moodleRoutes);
+app.use('/api/v1/kenaikan-kelas', kenaikanKelasRoutes);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

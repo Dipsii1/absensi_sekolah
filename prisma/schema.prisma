@@ -44,6 +44,12 @@ enum Hari {
   Sabtu
 }
 
+enum KeputusanKenaikan {
+  Naik
+  Tinggal
+  Lulus
+}
+
 model Role {
   id   Int    @id @default(autoincrement())
   name String @unique @db.VarChar(50)
@@ -129,6 +135,7 @@ model Siswa {
   absensi           AbsensiSiswa[]
   permintaan_status PermintaanStatusAbsensi[]
   final_absensi     FinalAbsensi[]
+  kenaikan_kelas    KenaikanKelas[]
   user              User?
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
@@ -312,6 +319,7 @@ model Kelas {
   jadwal            Jadwal[]
   permintaan_status PermintaanStatusAbsensi[]
   final_absensi     FinalAbsensi[]
+  kenaikan_kelas    KenaikanKelas[]
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
@@ -331,7 +339,8 @@ model Tahun {
   tanggal_selesai DateTime @db.Date
   is_active       Boolean  @default(false)
 
-  kelas Kelas[]
+  kelas          Kelas[]
+  kenaikan_kelas KenaikanKelas[]
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
@@ -340,6 +349,26 @@ model Tahun {
   @@index([is_active])
   @@index([deleted_at])
   @@map("tahun_ajaran")
+}
+
+model KenaikanKelas {
+  id              Int               @id @default(autoincrement())
+  siswa_id        String            @db.Uuid
+  tahun_ajaran_id Int
+  kelas_asal_id   Int
+  keputusan       KeputusanKenaikan @default(Naik)
+  catatan         String?           @db.Text
+
+  siswa Siswa @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
+  tahun Tahun @relation(fields: [tahun_ajaran_id], references: [id], onDelete: Cascade)
+  kelas Kelas @relation(fields: [kelas_asal_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([siswa_id, tahun_ajaran_id])
+  @@index([tahun_ajaran_id, kelas_asal_id])
+  @@map("kenaikan_kelas")
 }
 
 model PermintaanStatusAbsensi {

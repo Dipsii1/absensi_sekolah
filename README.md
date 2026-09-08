@@ -60,6 +60,11 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
   - Persetujuan oleh Walas.
   - Auto-approve oleh sistem jika expired.
 
+- **Manajemen Kenaikan Kelas**
+  - Atur status naik/tinggal/lulus per siswa per tahun ajaran.
+  - Preview keputusan default (Naik untuk X/XI, Lulus untuk XII) sebelum submit.
+  - Bulk submit via transaksi dengan validasi siswa harus terdaftar di kelas yang sesuai.
+
 ---
 
 ## 📁 Struktur Direktori
@@ -90,7 +95,8 @@ absensi_sekolah/
 │   │   ├── finalAbsensiControllers.js
 │   │   ├── rekapControllers.js
 │   │   ├── exportControllers.js
-│   │   └── statusRequestControllers.js
+│   │   ├── statusRequestControllers.js
+│   │   └── kenaikanKelasControllers.js
 │   ├── middleware/              # Middleware global
 │   │   ├── auth.js             # verifyToken, checkRole, requirePokja
 │   │   └── upload.js           # Multer upload handler
@@ -112,7 +118,8 @@ absensi_sekolah/
 │   │   ├── finalAbsensiRoutes.js
 │   │   ├── rekapRoutes.js
 │   │   ├── exportRoutes.js
-│   │   └── statusRequestRoutes.js
+│   │   ├── statusRequestRoutes.js
+│   │   └── kenaikanKelasRoutes.js
 │   ├── services/               # Service layer
 │   │   ├── telegramServices.js
 │   │   └── finalAbsensi.js
@@ -354,6 +361,15 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `POST` | `/tahun-ajaran` | 🔒 | `SUPER_ADMIN` | Tambah tahun ajaran baru |
 | `PUT` | `/tahun-ajaran/:id` | 🔒 | `SUPER_ADMIN` | Update tahun ajaran |
 | `DELETE` | `/tahun-ajaran/:id` | 🔒 | `SUPER_ADMIN` | Hapus tahun ajaran |
+
+---
+
+### 🎓 Kenaikan Kelas
+
+| Method | Endpoint | Auth | Role | Deskripsi |
+|--------|----------|------|------|-----------|
+| `GET` | `/kenaikan-kelas/preview` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Preview keputusan kenaikan per kelas & siswa (filter: `tahun_ajaran_id`, `kelas_id`) |
+| `POST` | `/kenaikan-kelas/submit` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Submit/bulk-upsert keputusan kenaikan kelas (body: `tahun_ajaran_id`, `keputusan[]`) |
 
 ---
 
@@ -606,6 +622,17 @@ Untuk pertanyaan, bug report, atau saran:
 ---
 
 ## 📝 Changelog
+
+### v0.0.3 (Latest)
+- ✅ **Fitur Kenaikan Kelas**: atur status naik/tinggal/lulus per siswa per tahun ajaran.
+  - Endpoint `GET /kenaikan-kelas/preview` & `POST /kenaikan-kelas/submit` (role ADMIN/SUPER_ADMIN).
+  - Schema baru: enum `KeputusanKenaikan` (Naik/Tinggal/Lulus), model `KenaikanKelas` dengan unique constraint `[siswa_id, tahun_ajaran_id]`.
+  - `autoCreateTahunAjaran` rewrite: carry-over kelas menghormati keputusan per siswa; kelas XII diproses (default Lulus) bukan dilewati.
+  - Cron `tahunAjaran` sekarang di-load di `app.js` (sebelumnya tidak ter-load → tidak pernah berjalan).
+  - `GET /tahun-ajaran` tidak lagi memicu `autoCreateTahunAjaran()` (side-effect dipindah ke cron).
+  - `createTahunAjaran` kini non-aktifkan tahun aktif lain sebelum create (mencegah multiple active).
+- 🐛 **Bugfix**: regex `naipkanTingkat` — "XII" match `/^XI/i` menghasilkan "XIII"; sekarang XII dikembalikan apa adanya.
+- 🐛 **Bugfix**: casing Prisma Client (`prisma.Tahun/Kelas/Siswa` → `prisma.tahun/kelas/siswa`) di semua file.
 
 ### v0.0.0 (Current)
 - ✅ Core features: Auth, Users, Siswa, Guru, Kelas
