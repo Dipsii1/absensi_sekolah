@@ -5,7 +5,7 @@ module.exports = async (prisma, siswaList) => {
 
     for (let i = 0; i < rfidSiswa.length; i++) {
         const siswa = rfidSiswa[i];
-        const uid_rfid = `RFID${String(i + 1).padStart(6, "0")}`;
+        const uid_rfid = `RFID${String(i + 1).padStart(3, "0")}`;
 
         const existing = await prisma.rFID.findFirst({
             where: { uid_rfid, deleted_at: null },

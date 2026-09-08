@@ -6,6 +6,10 @@ require('dotenv').config();
 // get all orang tua
 const getAllOrangTua = async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
+
         const orangTua = await prisma.orangTua.findMany({
             where: {
                 deleted_at: null
@@ -13,6 +17,8 @@ const getAllOrangTua = async (req, res) => {
             orderBy: {
                 created_at: "desc"
             },
+            skip: skip,
+            take: limit,
             include: {
                 siswa: {
                     where: {
@@ -24,29 +30,36 @@ const getAllOrangTua = async (req, res) => {
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                }
+                                jurusan: true
                             }
                         }
                     }
                 }
             }
-        })
+        });
+
+        const total = await prisma.orangTua.count({
+            where: {
+                deleted_at: null
+            }
+        });
 
         return res.status(200).json({
             success: true,
             message: "Berhasil mendapatkan data orang tua",
-            data: orangTua
+            data: orangTua,
+            pagination: {
+                total: total,
+                page: page,
+                limit: limit,
+                totalPages: Math.ceil(total / limit)
+            }
         });
+
     } catch (error) {
-        console.error("Error getting orang tua:", error);
         return res.status(500).json({
             success: false,
-            message: "Terjadi kesalahan pada server",
-            error: error.message
+            message: error.message
         });
     }
 };
@@ -70,15 +83,10 @@ const getOrangTuaById = async (req, res) => {
                         id: true,
                         nama: true,
                         alamat: true,
-                        nomor_telepon: true,
                         kelas: {
                             select: {
                                 kelas: true,
-                                jurusan: {
-                                    select: {
-                                        nama_jurusan: true
-                                    }
-                                },
+                                jurusan: true,
                                 tahun: {
                                     select: {
                                         tahun_ajaran: true
@@ -116,12 +124,36 @@ const getOrangTuaById = async (req, res) => {
 // menambahkan orang tua
 const createOrangTua = async (req, res) => {
     try {
-        const { nama_orangtua, nomor_telepon } = req.body;
+        const { nama_orangtua, nomor_telepon, NIK, pekerjaan, alamat } = req.body;
 
-        if (!nama_orangtua || !nomor_telepon) {
+        if (!nama_orangtua || !nomor_telepon || !NIK || !pekerjaan || !alamat) {
             return res.status(400).json({
                 success: false,
-                message: "Nama orang tua dan nomor telepon wajib diisi"
+                message: "Semua field wajib diisi"
+            });
+        }
+
+        // validasi format NIK 
+        const nikRegex = /^[0-9]{16}$/;
+        if (!nikRegex.test(NIK)) {
+            return res.status(400).json({
+                success: false,
+                message: "Format NIK tidak valid (gunakan 16 digit angka)"
+            });
+        }
+
+        // cek duplikasi NIK
+        const existinNIK = await prisma.orangTua.findFirst({
+            where: {
+                NIK: NIK,
+                deleted_at: null
+            }
+        });
+
+        if (existinNIK) {
+            return res.status(409).json({
+                success: false,
+                message: "NIK sudah terdaftar"
             });
         }
 
@@ -152,16 +184,33 @@ const createOrangTua = async (req, res) => {
 
         const checkDeletedOrangTua = await prisma.orangTua.findFirst({
             where: {
-                nama_orangtua: nama_orangtua
+                nama_orangtua: nama_orangtua,
+                nomor_telepon: nomor_telepon,
+                NIK: NIK,
+                pekerjaan: pekerjaan,
+                alamat: alamat,
+                deleted_at: {
+                    not: null
+                }
             }
         });
 
         if (checkDeletedOrangTua && checkDeletedOrangTua.deleted_at) {
+
+            const restoredOrangTua = await prisma.orangTua.update({
+                where: {
+                    id: checkDeletedOrangTua.id,
+                },
+                data: {
+                    deleted_at: null,
+                    updated_at: new Date()
+                }
+            });
             // restore orang tua yang sudah di soft delete
             return res.status(200).json({
                 success: true,
                 message: "Berhasil mengembalikan data orang tua yang sudah dihapus",
-                data: checkDeletedOrangTua
+                data: restoredOrangTua
             })
         }
 
@@ -170,6 +219,10 @@ const createOrangTua = async (req, res) => {
             data: {
                 nama_orangtua,
                 nomor_telepon,
+                NIK,
+                pekerjaan,
+                alamat
+
             }
         });
 
@@ -192,22 +245,51 @@ const createOrangTua = async (req, res) => {
 const updateOrangTua = async (req, res) => {
     try {
         const { id } = req.params;
-        const { nama_orangtua, nomor_telepon } = req.body;
+        const { nama_orangtua, nomor_telepon, NIK, pekerjaan, alamat } = req.body;
 
         // Validasi input
-        if (!nama_orangtua || !nomor_telepon) {
+        if (!nama_orangtua || !nomor_telepon || !NIK || !pekerjaan || !alamat) {
             return res.status(400).json({
                 success: false,
-                message: "Nama orang tua dan nomor telepon wajib diisi"
+                message: "Semua field wajib diisi"
             });
         }
 
-        // Validasi format nomor telepon
-        const phoneRegex = /^(\+62|62|0)[0-9]{9,12}$/;
+
+        // validasi format NIK 
+        const nikRegex = /^[0-9]{16}$/;
+        if (!nikRegex.test(NIK)) {
+            return res.status(400).json({
+                success: false,
+                message: "Format NIK tidak valid (gunakan 16 digit angka)"
+            });
+        }
+
+
+        // Cek duplikasi NIK (kecuali data sendiri)
+        const duplicateNIK = await prisma.orangTua.findFirst({
+            where: {
+                NIK: NIK,
+                deleted_at: null,
+                NOT: {
+                    id: parseInt(id)
+                }
+            }
+        });
+
+        if (duplicateNIK) {
+            return res.status(409).json({
+                success: false,
+                message: "NIK sudah digunakan oleh orang tua lain"
+            });
+        }
+
+        // validasi format nomor telepon
+        const phoneRegex = /^08[0-9]{8,11}$/;
         if (!phoneRegex.test(nomor_telepon)) {
             return res.status(400).json({
                 success: false,
-                message: "Format nomor telepon tidak valid (gunakan format: 08xx atau +62xx)"
+                message: "Format nomor telepon tidak valid (gunakan format: 08xx)"
             });
         }
 
@@ -252,6 +334,9 @@ const updateOrangTua = async (req, res) => {
             data: {
                 nama_orangtua,
                 nomor_telepon,
+                NIK,
+                pekerjaan,
+                alamat,
                 updated_at: new Date()
             }
         });

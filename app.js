@@ -1,3 +1,5 @@
+process.env.TZ = process.env.TZ || 'Asia/Jakarta';
+
 var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
@@ -6,12 +8,8 @@ var logger = require('morgan');
 var cors = require('cors');
 require('dotenv').config();
 
-// Inisialisasi layanan Telegram
-require('./src/services/telegramServices');
-
 var indexRouter = require('./src/routes/index');
 var tahunRoutes = require('./src/routes/tahunRoutes');
-var jurusanRoutes = require('./src/routes/jurusanRoutes');
 var mapelRoutes = require('./src/routes/mapelRoutes');
 var guruRoutes = require('./src/routes/guruRoutes');
 var orangTuaRoutes = require('./src/routes/orangTuaRoutes')
@@ -21,18 +19,25 @@ var rfidRoutes = require('./src/routes/rfidRoutes')
 var siswaRoutes = require('./src/routes/siswaRoutes');
 var absensiSiswaRoutes = require('./src/routes/absensiSiswaRoutes');
 var detailAbsensi = require('./src/routes/detailAbsensiRoutes')
-var users = require('./src/routes/usersRoutes');
-var auth = require('./src/routes/authRoutes');
-
-
-// cron job
-require("./src/cron/tahunAjaran");
+var usersRoutes = require('./src/routes/usersRoutes');
+var authRoutes = require('./src/routes/authRoutes');
+var roleRoutes = require('./src/routes/roleRoutes');
+var statusRequestRoutes = require('./src/routes/statusRequestRoutes');
+var finalAbsensi = require ('./src/routes/finalAbsensiRoutes');
+var rekapRoutes = require('./src/routes/rekapRoutes');
+var exportRoutes = require('./src/routes/exportRoutes');
+var moodleRoutes = require('./src/routes/moodleRoutes');
+var kenaikanKelasRoutes = require('./src/routes/kenaikanKelasRoutes');
 
 var app = express();
 
+require('./src/workers/tapInWorker')
+require('./src/workers/tapOutWorker')
+require('./src/cron/tahunAjaran')
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+app.set('view engine', 'pug');
 
 app.use(logger('dev'));
 app.use(express.json());
@@ -41,10 +46,11 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(cors({
-  origin: 'http://localhost:4321',
-  credentials: true
+  origin: process.env.URL_FRONTEND || "http://localhost:4321",
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT','PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
-
 
 // routes
 app.use('/', indexRouter);
@@ -55,19 +61,23 @@ app.use('/api/v1/guru', guruRoutes);
 app.use('/api/v1/orang-tua', orangTuaRoutes)
 app.use('/api/v1/kelas', kelasRoutes)
 app.use('/api/v1/jadwal', jadwalRoutes)
-app.use('/api/v1/jurusan', jurusanRoutes);
 app.use('/api/v1/rfid', rfidRoutes);
 app.use('/api/v1/absensi-siswa', absensiSiswaRoutes);
 app.use('/api/v1/detail-absensi', detailAbsensi)
-app.use('/api/v1/users', users);
-app.use('/api/v1/auth', auth);
+app.use('/api/v1/users', usersRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/role', roleRoutes);
+app.use('/api/v1/status-request', statusRequestRoutes);
+app.use('/api/v1/final-absensi', finalAbsensi);
+app.use('/api/v1/rekap', rekapRoutes);
+app.use('/api/v1/export', exportRoutes);
+app.use('/api/v1/moodle', moodleRoutes);
+app.use('/api/v1/kenaikan-kelas', kenaikanKelasRoutes);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
   next(createError(404));
 });
-
-
 
 // error handler
 app.use(function (err, req, res, next) {
@@ -78,9 +88,10 @@ app.use(function (err, req, res, next) {
   res.render('error');
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log(`Server running on port ${process.env.PORT || 3000}`);
 });
+
 
 module.exports = app;

@@ -2,21 +2,37 @@ module.exports = async (prisma) => {
     console.log("🔐 Seeding Role...");
 
     const roleData = [
+        { name: "SUPER_ADMIN" },
         { name: "ADMIN" },
         { name: "GURU" },
+        { name: "WALAS" },
+        { name: "KESISWAAN" },
+        { name: "SISWA" },
     ];
 
     const roleMap = {};
 
     for (const data of roleData) {
-        const role = await prisma.role.upsert({
+        let role = await prisma.role.findFirst({
             where: { name: data.name },
-            update: {},
-            create: data,
         });
 
-        roleMap[data.name] = role;  
-        console.log(`  ✔ ${role.name}`);
+        if (role) {
+            if (role.deleted_at) {
+                role = await prisma.role.update({
+                    where: { id: role.id },
+                    data:  { deleted_at: null },
+                });
+                console.log(`  ♻ ${role.name} (restored)`);
+            } else {
+                console.log(`  ✔ ${role.name} (exists)`);
+            }
+        } else {
+            role = await prisma.role.create({ data });
+            console.log(`  ✔ ${role.name} (created)`);
+        }
+
+        roleMap[data.name] = role;
     }
 
     return roleMap;

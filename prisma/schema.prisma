@@ -7,16 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum StatusSiswa {
+  Active
+  Inactive
+  Alumni
+}
+
+enum StatusKelas {
+  Active
+  Inactive
+}
+
 enum StatusAbsensi {
-  HADIR
-  IZIN
-  SAKIT
-  ALPHA
+  Hadir
+  Izin
+  Sakit
+  Alpha
 }
 
 enum StatusKedatangan {
-  TELAMBAT
-  TEPAT_WAKTU
+  Terlambat
+  Tepat_Waktu
 }
 
 enum Gender {
@@ -25,74 +36,126 @@ enum Gender {
 }
 
 enum Hari {
-  SENIN
-  SELASA
-  RABU
-  KAMIS
-  JUMAT
-  SABTU
+  Senin
+  Selasa
+  Rabu
+  Kamis
+  Jumat
+  Sabtu
+}
+
+enum KeputusanKenaikan {
+  Naik
+  Tinggal
+  Lulus
 }
 
 model Role {
   id   Int    @id @default(autoincrement())
-  name String @unique
+  name String @unique @db.VarChar(50)
 
-  users User[]
+  userRole   UserRole[]
+  created_at DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at DateTime   @updatedAt @db.Timestamptz(6)
+  deleted_at DateTime?  @db.Timestamptz(6)
 
+  @@index([deleted_at])
   @@map("roles")
 }
 
 model User {
-  id       String @id @default(uuid()) @db.Uuid
-  email    String @unique
-  password String
+  id       String  @id @default(uuid()) @db.Uuid
+  username String  @unique @db.VarChar(255)
+  email    String? @unique @db.VarChar(255)
+  password String  @db.VarChar(255)
 
-  role_id Int?
-  role    Role? @relation(fields: [role_id], references: [id])
+  userRole  UserRole[]
+  pokjaUser PokjaUser?
 
   guru_id Int?  @unique
   guru    Guru? @relation(fields: [guru_id], references: [id], onDelete: SetNull)
 
+  siswa_id String? @unique @db.Uuid
+  siswa    Siswa?  @relation(fields: [siswa_id], references: [id], onDelete: SetNull)
+
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
+  @@index([email, deleted_at])
   @@index([deleted_at])
   @@map("users")
 }
 
+model PokjaUser {
+  user_id     String   @id @db.Uuid
+  assigned_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  @@map("pokja_users")
+}
+
+model UserRole {
+  user_id     String   @db.Uuid
+  role_id     Int
+  assigned_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, role_id])
+  @@index([role_id])
+  @@map("user_roles")
+}
+
 model Siswa {
   id            String   @id @default(uuid()) @db.Uuid
-  NISN          String   @unique @db.VarChar(20)
-  NIPD          String   @unique @db.VarChar(20)
-  nama          String   @db.VarChar(255)
-  alamat        String   @db.Text
-  gender        Gender
-  tanggal_lahir DateTime @db.Date
-  nomor_telepon String   @db.VarChar(15)
+  nama          String   @db.VarChar(150)
+  nisn          String   @unique @db.VarChar(20)
+  nipd          String?  @unique @db.VarChar(20)
+  nik           String   @unique @db.VarChar(20)
+  tempat_lahir  String   @db.VarChar(100)
+  tgl_lahir     DateTime @db.Date
+  jenis_kelamin String   @db.VarChar(1)
+  agama         String   @db.VarChar(50)
+  jurusan       String   @db.VarChar(100) 
 
+  status_siswa StatusSiswa @default(Active)
+  
   orangtua_id Int?
   kelas_id    Int?
 
-  orang_tua OrangTua?      @relation(fields: [orangtua_id], references: [id], onDelete: SetNull)
-  kelas     Kelas?         @relation(fields: [kelas_id], references: [id], onDelete: SetNull)
-  rfid      RFID[]
-  absensi   AbsensiSiswa[]
+  orang_tua         OrangTua?                 @relation(fields: [orangtua_id], references: [id], onDelete: SetNull)
+  kelas             Kelas?                    @relation(fields: [kelas_id], references: [id], onDelete: SetNull)
+  rfid              RFID[]
+  absensi           AbsensiSiswa[]
+  permintaan_status PermintaanStatusAbsensi[]
+  final_absensi     FinalAbsensi[]
+  kenaikan_kelas    KenaikanKelas[]
+  user              User?
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
-  @@index([kelas_id])
+  @@index([kelas_id, deleted_at])
   @@index([orangtua_id])
+  @@index([nama])
   @@index([deleted_at])
   @@map("siswa")
 }
 
 model OrangTua {
   id            Int    @id @default(autoincrement())
+  NIK           String @unique @db.VarChar(20)
   nama_orangtua String @db.VarChar(255)
   nomor_telepon String @db.VarChar(15)
+  pekerjaan     String @db.VarChar(255)
+  alamat        String @db.Text
 
   siswa Siswa[]
 
@@ -100,6 +163,7 @@ model OrangTua {
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
+  @@index([NIK])
   @@index([deleted_at])
   @@map("orang_tua")
 }
@@ -117,20 +181,22 @@ model RFID {
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
-  @@index([siswa_id])
+  @@index([siswa_id, is_active])
+  @@index([uid_rfid, deleted_at])
   @@index([is_active])
   @@index([deleted_at])
   @@map("rfid")
 }
 
 model AbsensiSiswa {
-  id           Int               @id @default(autoincrement())
-  siswa_id     String            @db.Uuid
-  tanggal      DateTime          @db.Date
-  tap_in       DateTime?         @db.Timestamptz(6)
-  tap_out      DateTime?         @db.Timestamptz(6)
-  rfid_id      Int?
-  status_tapin StatusKedatangan?
+  id            Int               @id @default(autoincrement())
+  siswa_id      String            @db.Uuid
+  tanggal       DateTime          @db.Date
+  tap_in        DateTime?         @db.Timestamptz(6)
+  tap_out       DateTime?         @db.Timestamptz(6)
+  rfid_id       Int?
+  status_tapin  StatusKedatangan?
+  status_harian StatusAbsensi?
 
   siswa  Siswa                @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
   rfid   RFID?                @relation(fields: [rfid_id], references: [id], onDelete: SetNull)
@@ -140,10 +206,11 @@ model AbsensiSiswa {
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
-  @@unique([siswa_id, tanggal])
-  @@index([tanggal])
+  @@index([siswa_id, tanggal, deleted_at])
+  @@index([tanggal, deleted_at])
   @@index([rfid_id])
   @@index([status_tapin])
+  @@index([status_harian])
   @@index([deleted_at])
   @@map("absensi_siswa")
 }
@@ -165,8 +232,8 @@ model DetailAbsensiSiswa {
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
-  @@index([absensi_id])
-  @@index([jadwal_id])
+  @@index([absensi_id, deleted_at])
+  @@index([jadwal_id, status])
   @@index([guru_id])
   @@index([status])
   @@index([deleted_at])
@@ -175,7 +242,7 @@ model DetailAbsensiSiswa {
 
 model Guru {
   id            Int      @id @default(autoincrement())
-  NIP           String   @unique @db.VarChar(20)
+  NIP           String   @unique @db.VarChar(50)
   nama          String   @db.VarChar(255)
   nomor_telepon String   @db.VarChar(15)
   alamat        String   @db.Text
@@ -183,14 +250,17 @@ model Guru {
 
   user User?
 
-  jadwal         Jadwal[]
-  detail_absensi DetailAbsensiSiswa[]
-  kelas_walas    Kelas[]              @relation("WaliKelas")
+  jadwal                   Jadwal[]
+  detail_absensi           DetailAbsensiSiswa[]
+  kelas_walas              Kelas[]                   @relation("WaliKelas")
+  permintaan_sebagai_guru  PermintaanStatusAbsensi[] @relation("GuruPermintaan")
+  permintaan_sebagai_walas PermintaanStatusAbsensi[] @relation("WalasPermintaan")
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
+  @@index([nama])
   @@index([deleted_at])
   @@map("guru")
 }
@@ -201,8 +271,8 @@ model Jadwal {
   kelas_id    Int
   mapel_id    Int
   guru_id     Int
-  jam_mulai   DateTime @db.Time(6)
-  jam_selesai DateTime @db.Time(6)
+  jam_mulai   String @db.VarChar(5)
+  jam_selesai String @db.VarChar(5)
 
   kelas          Kelas                @relation(fields: [kelas_id], references: [id], onDelete: Restrict)
   mata_pelajaran MataPelajaran        @relation(fields: [mapel_id], references: [id], onDelete: Restrict)
@@ -211,19 +281,17 @@ model Jadwal {
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
-  deleted_at DateTime? @db.Timestamptz(6)
 
   @@unique([kelas_id, hari, jam_mulai])
   @@index([guru_id, hari])
   @@index([hari, kelas_id])
   @@index([mapel_id])
-  @@index([deleted_at])
   @@map("jadwal")
 }
 
 model MataPelajaran {
   id         Int    @id @default(autoincrement())
-  nama_mapel String @db.VarChar(100)
+  nama_mapel String @unique @db.VarChar(100)
 
   jadwal Jadwal[]
 
@@ -231,48 +299,37 @@ model MataPelajaran {
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
+  @@index([nama_mapel])
   @@index([deleted_at])
   @@map("mata_pelajaran")
 }
 
 model Kelas {
-  id                Int     @id @default(autoincrement())
-  kelas             String  @db.VarChar(10)
-  jurusan_id        Int
+  id                Int         @id @default(autoincrement())
+  kelas             String      @db.VarChar(10)
+  jurusan           String      @db.VarChar(100)
   tahun_ajaran_id   Int
-  telegram_group_id String? @db.VarChar(50)
+  telegram_group_id String?     @db.VarChar(50)
   walas_id          Int?
+  status_kelas      StatusKelas @default(Active)
 
-  jurusan Jurusan  @relation(fields: [jurusan_id], references: [id], onDelete: Restrict)
-  tahun   Tahun    @relation(fields: [tahun_ajaran_id], references: [id], onDelete: Restrict)
-  walas   Guru?    @relation("WaliKelas", fields: [walas_id], references: [id], onDelete: Restrict)
-  siswa   Siswa[]
-  jadwal  Jadwal[]
+  tahun             Tahun                     @relation(fields: [tahun_ajaran_id], references: [id], onDelete: Restrict)
+  walas             Guru?                     @relation("WaliKelas", fields: [walas_id], references: [id], onDelete: Restrict)
+  siswa             Siswa[]
+  jadwal            Jadwal[]
+  permintaan_status PermintaanStatusAbsensi[]
+  final_absensi     FinalAbsensi[]
+  kenaikan_kelas    KenaikanKelas[]
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
-  @@unique([kelas, jurusan_id, tahun_ajaran_id])
-  @@index([jurusan_id])
+  @@unique([kelas, jurusan, tahun_ajaran_id])
   @@index([tahun_ajaran_id])
-  @@index([deleted_at])
   @@index([walas_id])
-  @@map("kelas")
-}
-
-model Jurusan {
-  id           Int    @id @default(autoincrement())
-  nama_jurusan String @unique @db.VarChar(100)
-
-  kelas Kelas[]
-
-  created_at DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at DateTime  @updatedAt @db.Timestamptz(6)
-  deleted_at DateTime? @db.Timestamptz(6)
-
   @@index([deleted_at])
-  @@map("jurusan")
+  @@map("kelas")
 }
 
 model Tahun {
@@ -282,7 +339,8 @@ model Tahun {
   tanggal_selesai DateTime @db.Date
   is_active       Boolean  @default(false)
 
-  kelas Kelas[]
+  kelas          Kelas[]
+  kenaikan_kelas KenaikanKelas[]
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
@@ -291,4 +349,83 @@ model Tahun {
   @@index([is_active])
   @@index([deleted_at])
   @@map("tahun_ajaran")
+}
+
+model KenaikanKelas {
+  id              Int               @id @default(autoincrement())
+  siswa_id        String            @db.Uuid
+  tahun_ajaran_id Int
+  kelas_asal_id   Int
+  keputusan       KeputusanKenaikan @default(Naik)
+  catatan         String?           @db.Text
+
+  siswa Siswa @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
+  tahun Tahun @relation(fields: [tahun_ajaran_id], references: [id], onDelete: Cascade)
+  kelas Kelas @relation(fields: [kelas_asal_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([siswa_id, tahun_ajaran_id])
+  @@index([tahun_ajaran_id, kelas_asal_id])
+  @@map("kenaikan_kelas")
+}
+
+model PermintaanStatusAbsensi {
+  id               Int            @id @default(autoincrement())
+  siswa_id         String         @db.Uuid
+  kelas_id         Int
+  guru_id          Int
+  walas_id         Int
+  tanggal          DateTime       @db.Date
+  status_lama      StatusAbsensi?
+  status_baru      StatusAbsensi
+  keterangan       String?        @db.Text
+  is_pending       Boolean        @default(true)
+  is_approved      Boolean        @default(false)
+  is_auto_approved Boolean        @default(false)
+  expires_at       DateTime       @db.Timestamptz(6)
+
+  siswa Siswa @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
+  kelas Kelas @relation(fields: [kelas_id], references: [id], onDelete: Cascade)
+  guru  Guru  @relation("GuruPermintaan", fields: [guru_id], references: [id], onDelete: Cascade)
+  walas Guru  @relation("WalasPermintaan", fields: [walas_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @updatedAt @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+
+  @@index([walas_id, is_pending])
+  @@index([siswa_id, tanggal])
+  @@index([expires_at, is_pending])
+  @@map("permintaan_status_absensi")
+}
+
+model FinalAbsensi {
+  id           Int           @id @default(autoincrement())
+  siswa_id     String        @db.Uuid
+  kelas_id     Int
+  tanggal      DateTime      @db.Date
+  status_final StatusAbsensi
+  total_hadir  Int           @default(0)
+  total_izin   Int           @default(0)
+  total_sakit  Int           @default(0)
+  total_alpha  Int           @default(0)
+  total_mapel  Int           @default(0)
+  is_finalized Boolean       @default(false)
+  finalized_at DateTime?     @db.Timestamptz(6)
+
+  siswa Siswa @relation(fields: [siswa_id], references: [id], onDelete: Cascade)
+  kelas Kelas @relation(fields: [kelas_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @updatedAt @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+
+  @@unique([siswa_id, tanggal])
+  @@index([kelas_id, tanggal])
+  @@index([status_final])
+  @@index([is_finalized])
+  @@index([deleted_at])
+  @@map("final_absensi")
 }

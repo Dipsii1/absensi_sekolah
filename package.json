@@ -5,28 +5,42 @@
   "scripts": {
     "start": "node ./bin/www",
     "dev": "nodemon app.js",
-    "seed": "prisma db seed --preview-feature"
+    "seed": "prisma db seed --preview-feature",
+    "build": "prisma generate",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "db:push": "prisma db push",
+    "db:seed": "node prisma/seed.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
-    "axios": "^1.13.4",
-    "bcrypt": "^6.0.0",
+    "axios": "^1.16.1",
+    "bcrypt": "^5.1.1",
+    "bullmq": "^6.3.1",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.6",
     "debug": "~2.6.9",
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "http-errors": "~1.6.3",
-    "jade": "~1.11.0",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "~1.9.1",
+    "multer": "^2.1.1",
     "node-cron": "^4.2.1",
-    "node-telegram-bot-api": "^0.67.0"
+    "node-telegram-bot-api": "^0.67.0",
+    "pdfkit": "^0.18.0",
+    "pug": "^3.0.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "nodemon": "^3.1.14",
     "prisma": "^5.22.0"
   }
 }

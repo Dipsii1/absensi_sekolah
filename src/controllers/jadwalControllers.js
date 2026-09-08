@@ -1,32 +1,60 @@
 const prisma = require("../config/prisma");
-const { formatDateTime, formatTime, validateTimeFormat, validateHari  } = require("../helper/date");
+const { formatDateTime, formatTime, formatJam, validateTimeFormat, validateHari } = require("../helper/indexUtils");
+const XLSX = require("xlsx");
 
 
+const normalizeJamValue = (raw) => {
+    if (raw === null || raw === undefined || raw === "") return "";
+
+    // Sudah Date object (kalau reader di-set cellDates: true)
+    if (raw instanceof Date && !isNaN(raw.getTime())) {
+        const hh = String(raw.getHours()).padStart(2, "0");
+        const mm = String(raw.getMinutes()).padStart(2, "0");
+        return `${hh}:${mm}`;
+    }
+
+    // Angka serial Excel (waktu = pecahan hari, mis. 07:00 -> 0.291666...)
+    if (typeof raw === "number") {
+        const fractionOfDay = raw % 1; // buang bagian tanggal kalau ada
+        const totalMinutes = Math.round(fractionOfDay * 24 * 60);
+        const hh = String(Math.floor(totalMinutes / 60) % 24).padStart(2, "0");
+        const mm = String(totalMinutes % 60).padStart(2, "0");
+        return `${hh}:${mm}`;
+    }
+
+    // String biasa, mis. "07:00" atau "7.00" — normalisasi titik jadi titik dua
+    let str = String(raw).trim();
+    str = str.replace(".", ":");
+    const match = str.match(/^(\d{1,2}):(\d{1,2})$/);
+    if (match) {
+        const hh = match[1].padStart(2, "0");
+        const mm = match[2].padStart(2, "0");
+        return `${hh}:${mm}`;
+    }
+
+    return str;
+};
 
 // get all jadwal
 const getAllJadwal = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
+        const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
 
-        const whereCondition = {
-            deleted_at: null
-        };
+        const whereCondition = {};
 
-        // Filter by kelas_id if provided
         if (req.query.kelas_id) {
             whereCondition.kelas_id = parseInt(req.query.kelas_id);
         }
 
-        // Filter by guru_id if provided
         if (req.query.guru_id) {
             whereCondition.guru_id = parseInt(req.query.guru_id);
         }
 
-        // Filter by hari if provided
         if (req.query.hari) {
-            whereCondition.hari = req.query.hari.toUpperCase();
+            const h = req.query.hari.trim();
+            whereCondition.hari = h.charAt(0).toUpperCase() + h.slice(1).toLowerCase();
         }
 
         const [data, total] = await Promise.all([
@@ -43,11 +71,7 @@ const getAllJadwal = async (req, res) => {
                         select: {
                             id: true,
                             kelas: true,
-                            jurusan: {
-                                select: {
-                                    nama_jurusan: true
-                                }
-                            },
+                            jurusan: true,
                             tahun: {
                                 select: {
                                     tahun_ajaran: true
@@ -70,19 +94,15 @@ const getAllJadwal = async (req, res) => {
                     }
                 }
             }),
-            prisma.jadwal.count({
-                where: whereCondition
-            })
+            prisma.jadwal.count({ where: whereCondition })
         ]);
 
-
-        // format response
         const formattedData = data.map(jadwal => ({
             id: jadwal.id,
             hari: jadwal.hari,
-            jam_mulai: formatTime(jadwal.jam_mulai),
-            jam_selesai: formatTime(jadwal.jam_selesai),
-            jam_lengkap: `${formatTime(jadwal.jam_mulai)} - ${formatTime(jadwal.jam_selesai)}`,
+            jam_mulai: formatJam(jadwal.jam_mulai),
+            jam_selesai: formatJam(jadwal.jam_selesai),
+            jam_lengkap: `${formatJam(jadwal.jam_mulai)} - ${formatJam(jadwal.jam_selesai)}`,
             kelas: jadwal.kelas,
             mata_pelajaran: jadwal.mata_pelajaran,
             guru: jadwal.guru,
@@ -112,19 +132,11 @@ const getAllJadwal = async (req, res) => {
     }
 };
 
-// create jadwal 
+// create jadwal
 const createJadwal = async (req, res) => {
     try {
-        const {
-            hari,
-            kelas_id,
-            mapel_id,
-            guru_id,
-            jam_mulai,
-            jam_selesai
-        } = req.body;
+        let { hari, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
 
-        // Validasi input wajib
         if (!hari || !kelas_id || !mapel_id || !guru_id || !jam_mulai || !jam_selesai) {
             return res.status(400).json({
                 success: false,
@@ -132,15 +144,19 @@ const createJadwal = async (req, res) => {
             });
         }
 
-        // Validasi hari
-        if (!validateHari(hari)) {
+        hari = typeof hari === 'string' ? hari.trim() : hari;
+        jam_mulai = normalizeJamValue(jam_mulai);
+        jam_selesai = normalizeJamValue(jam_selesai);
+
+        const hariNormalized = hari.charAt(0).toUpperCase() + hari.slice(1).toLowerCase();
+
+        if (!validateHari(hariNormalized)) {
             return res.status(400).json({
                 success: false,
-                message: "Hari tidak valid (gunakan: SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU)"
+                message: "Hari tidak valid (gunakan: Senin, Selasa, Rabu, Kamis, Jumat, Sabtu)"
             });
         }
 
-        // Validasi ID harus angka
         if (isNaN(parseInt(kelas_id)) || isNaN(parseInt(mapel_id)) || isNaN(parseInt(guru_id))) {
             return res.status(400).json({
                 success: false,
@@ -148,7 +164,6 @@ const createJadwal = async (req, res) => {
             });
         }
 
-        // Validasi format waktu
         if (!validateTimeFormat(jam_mulai) || !validateTimeFormat(jam_selesai)) {
             return res.status(400).json({
                 success: false,
@@ -156,154 +171,68 @@ const createJadwal = async (req, res) => {
             });
         }
 
-        // Validasi kelas exists
         const kelasExists = await prisma.kelas.findFirst({
-            where: {
-                id: parseInt(kelas_id),
-                deleted_at: null
-            }
+            where: { id: parseInt(kelas_id), deleted_at: null }
         });
-
         if (!kelasExists) {
-            return res.status(404).json({
-                success: false,
-                message: "Kelas tidak ditemukan"
-            });
+            return res.status(404).json({ success: false, message: "Kelas tidak ditemukan" });
         }
 
-        // Validasi mata pelajaran exists
         const mapelExists = await prisma.mataPelajaran.findFirst({
-            where: {
-                id: parseInt(mapel_id),
-                deleted_at: null
-            }
+            where: { id: parseInt(mapel_id), deleted_at: null }
         });
-
         if (!mapelExists) {
-            return res.status(404).json({
-                success: false,
-                message: "Mata pelajaran tidak ditemukan"
-            });
+            return res.status(404).json({ success: false, message: "Mata pelajaran tidak ditemukan" });
         }
 
-        // Validasi guru exists
         const guruExists = await prisma.guru.findFirst({
-            where: {
-                id: parseInt(guru_id),
-                deleted_at: null
-            }
+            where: { id: parseInt(guru_id), deleted_at: null }
         });
-
         if (!guruExists) {
-            return res.status(404).json({
-                success: false,
-                message: "Guru tidak ditemukan"
-            });
+            return res.status(404).json({ success: false, message: "Guru tidak ditemukan" });
         }
 
-        // Konversi jam ke format Time untuk PostgreSQL
-        const jamMulaiTime = `${jam_mulai}:00`;
-        const jamSelesaiTime = `${jam_selesai}:00`;
-
-        // Validasi jam selesai harus setelah jam mulai
         const [jamMulaiHour, jamMulaiMinute] = jam_mulai.split(':').map(Number);
         const [jamSelesaiHour, jamSelesaiMinute] = jam_selesai.split(':').map(Number);
-        
-        const totalMulai = jamMulaiHour * 60 + jamMulaiMinute;
-        const totalSelesai = jamSelesaiHour * 60 + jamSelesaiMinute;
-
-        if (totalSelesai <= totalMulai) {
+        if (jamSelesaiHour * 60 + jamSelesaiMinute <= jamMulaiHour * 60 + jamMulaiMinute) {
             return res.status(400).json({
                 success: false,
                 message: "Jam selesai harus setelah jam mulai"
             });
         }
 
-        // Cek konflik jadwal kelas
+        const overlapCondition = {
+            jam_mulai: { lt: jam_selesai },
+            jam_selesai: { gt: jam_mulai }
+        };
+
         const conflictKelas = await prisma.jadwal.findFirst({
             where: {
                 kelas_id: parseInt(kelas_id),
-                hari: hari.toUpperCase(),
-                deleted_at: null,
-                OR: [
-                    // Case 1: Jadwal baru dimulai saat jadwal existing berlangsung
-                    {
-                        AND: [
-                            { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                            { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }
-                        ]
-                    },
-                    // Case 2: Jadwal baru berakhir saat jadwal existing berlangsung
-                    {
-                        AND: [
-                            { jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } },
-                            { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                        ]
-                    },
-                    // Case 3: Jadwal baru membungkus jadwal existing
-                    {
-                        AND: [
-                            { jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                            { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                        ]
-                    },
-                    // Case 4: Jadwal existing membungkus jadwal baru
-                    {
-                        AND: [
-                            { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                            { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                        ]
-                    }
-                ]
+                hari: hariNormalized,
+                ...overlapCondition
             }
         });
-
         if (conflictKelas) {
             return res.status(409).json({
                 success: false,
-                message: "Jadwal bentrok dengan jadwal kelas lain pada waktu yang sama"
+                message: "Jadwal bentrok dengan jadwal kelas lain pada waktu yang sama",
+                conflict: {
+                    id: conflictKelas.id,
+                    hari: conflictKelas.hari,
+                    jam_mulai_raw: conflictKelas.jam_mulai,
+                    jam_selesai_raw: conflictKelas.jam_selesai
+                }
             });
         }
 
-        // Cek konflik jadwal guru
         const conflictGuru = await prisma.jadwal.findFirst({
             where: {
                 guru_id: parseInt(guru_id),
-                hari: hari.toUpperCase(),
-                deleted_at: null,
-                OR: [
-                    // Case 1: Jadwal baru dimulai saat jadwal existing berlangsung
-                    {
-                        AND: [
-                            { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                            { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }
-                        ]
-                    },
-                    // Case 2: Jadwal baru berakhir saat jadwal existing berlangsung
-                    {
-                        AND: [
-                            { jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } },
-                            { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                        ]
-                    },
-                    // Case 3: Jadwal baru membungkus jadwal existing
-                    {
-                        AND: [
-                            { jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                            { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                        ]
-                    },
-                    // Case 4: Jadwal existing membungkus jadwal baru
-                    {
-                        AND: [
-                            { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                            { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                        ]
-                    }
-                ]
+                hari: hariNormalized,
+                ...overlapCondition
             }
         });
-
         if (conflictGuru) {
             return res.status(409).json({
                 success: false,
@@ -311,60 +240,45 @@ const createJadwal = async (req, res) => {
             });
         }
 
-        // Buat jadwal baru
         const newJadwal = await prisma.jadwal.create({
             data: {
-                hari: hari.toUpperCase(),
+                hari: hariNormalized,
                 kelas_id: parseInt(kelas_id),
                 mapel_id: parseInt(mapel_id),
                 guru_id: parseInt(guru_id),
-                jam_mulai: new Date(`1970-01-01T${jamMulaiTime}`),
-                jam_selesai: new Date(`1970-01-01T${jamSelesaiTime}`)
+                jam_mulai,
+                jam_selesai
             },
             include: {
-                kelas: {
-                    select: {
-                        kelas: true,
-                        jurusan: {
-                            select: {
-                                nama_jurusan: true
-                            }
-                        }
-                    }
-                },
-                mata_pelajaran: {
-                    select: {
-                        nama_mapel: true
-                    }
-                },
-                guru: {
-                    select: {
-                        nama: true
-                    }
-                }
+                kelas: { select: { kelas: true, jurusan: true } },
+                mata_pelajaran: { select: { nama_mapel: true } },
+                guru: { select: { nama: true } }
             }
         });
-
-        // Format response
-        const formattedJadwal = {
-            id: newJadwal.id,
-            hari: newJadwal.hari,
-            jam_mulai: formatTime(newJadwal.jam_mulai),
-            jam_selesai: formatTime(newJadwal.jam_selesai),
-            jam_lengkap: `${formatTime(newJadwal.jam_mulai)} - ${formatTime(newJadwal.jam_selesai)}`,
-            kelas: newJadwal.kelas,
-            mata_pelajaran: newJadwal.mata_pelajaran,
-            guru: newJadwal.guru,
-            created_at: formatDateTime(newJadwal.created_at)
-        };
 
         return res.status(201).json({
             success: true,
             message: "Berhasil menambahkan jadwal baru",
-            data: formattedJadwal
+            data: {
+                id: newJadwal.id,
+                hari: newJadwal.hari,
+                jam_mulai: formatJam(newJadwal.jam_mulai),
+                jam_selesai: formatJam(newJadwal.jam_selesai),
+                jam_lengkap: `${formatJam(newJadwal.jam_mulai)} - ${formatJam(newJadwal.jam_selesai)}`,
+                kelas: newJadwal.kelas,
+                mata_pelajaran: newJadwal.mata_pelajaran,
+                guru: newJadwal.guru,
+                created_at: formatDateTime(newJadwal.created_at)
+            }
         });
 
     } catch (error) {
+        if (error.code === 'P2002') {
+            return res.status(409).json({
+                success: false,
+                message: "Jadwal dengan kombinasi kelas, hari, dan jam mulai ini sudah ada"
+            });
+        }
         console.error("Error creating jadwal:", error);
         return res.status(500).json({
             success: false,
@@ -374,13 +288,13 @@ const createJadwal = async (req, res) => {
     }
 };
 
-// update jadwal 
+// update jadwal
 const updateJadwal = async (req, res) => {
     try {
         const { id } = req.params;
-        const { hari, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
+        let { hari, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
+        const jadwalId = parseInt(id);
 
-        // Validasi input 
         if (!hari || !kelas_id || !mapel_id || !guru_id || !jam_mulai || !jam_selesai) {
             return res.status(400).json({
                 success: false,
@@ -388,15 +302,19 @@ const updateJadwal = async (req, res) => {
             });
         }
 
-        // Validasi hari
-        if (!validateHari(hari)) {
+        hari = typeof hari === 'string' ? hari.trim() : hari;
+        jam_mulai = normalizeJamValue(jam_mulai);
+        jam_selesai = normalizeJamValue(jam_selesai);
+
+        const hariNormalized = hari.charAt(0).toUpperCase() + hari.slice(1).toLowerCase();
+
+        if (!validateHari(hariNormalized)) {
             return res.status(400).json({
                 success: false,
-                message: "Hari tidak valid (gunakan: SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU)"
+                message: "Hari tidak valid (gunakan: Senin, Selasa, Rabu, Kamis, Jumat, Sabtu)"
             });
         }
 
-        // Validasi format waktu
         if (!validateTimeFormat(jam_mulai) || !validateTimeFormat(jam_selesai)) {
             return res.status(400).json({
                 success: false,
@@ -404,216 +322,109 @@ const updateJadwal = async (req, res) => {
             });
         }
 
-        // Cek jadwal apakah ada
-        const existingJadwal = await prisma.jadwal.findFirst({
-            where: {
-                id: parseInt(id),
-                deleted_at: null
-            }
+        const existingJadwal = await prisma.jadwal.findUnique({
+            where: { id: jadwalId }
         });
-
         if (!existingJadwal) {
-            return res.status(404).json({
-                success: false,
-                message: "Jadwal tidak ditemukan"
-            });
+            return res.status(404).json({ success: false, message: "Jadwal tidak ditemukan" });
         }
 
-        // Validasi kelas, mapel, guru exists
         const [kelasExists, mapelExists, guruExists] = await Promise.all([
-            prisma.kelas.findFirst({
-                where: { id: parseInt(kelas_id), deleted_at: null }
-            }),
-            prisma.mataPelajaran.findFirst({
-                where: { id: parseInt(mapel_id), deleted_at: null }
-            }),
-            prisma.guru.findFirst({
-                where: { id: parseInt(guru_id), deleted_at: null }
-            })
+            prisma.kelas.findFirst({ where: { id: parseInt(kelas_id), deleted_at: null } }),
+            prisma.mataPelajaran.findFirst({ where: { id: parseInt(mapel_id), deleted_at: null } }),
+            prisma.guru.findFirst({ where: { id: parseInt(guru_id), deleted_at: null } })
         ]);
 
         if (!kelasExists) {
-            return res.status(404).json({
-                success: false,
-                message: "Kelas tidak ditemukan"
-            });
+            return res.status(404).json({ success: false, message: "Kelas tidak ditemukan" });
         }
-
         if (!mapelExists) {
-            return res.status(404).json({
-                success: false,
-                message: "Mata pelajaran tidak ditemukan"
-            });
+            return res.status(404).json({ success: false, message: "Mata pelajaran tidak ditemukan" });
         }
-
         if (!guruExists) {
-            return res.status(404).json({
-                success: false,
-                message: "Guru tidak ditemukan"
-            });
+            return res.status(404).json({ success: false, message: "Guru tidak ditemukan" });
         }
 
-        // Konversi jam ke format Time
-        const jamMulaiTime = `${jam_mulai}:00`;
-        const jamSelesaiTime = `${jam_selesai}:00`;
-
-        // Validasi jam selesai harus setelah jam mulai
         const [jamMulaiHour, jamMulaiMinute] = jam_mulai.split(':').map(Number);
         const [jamSelesaiHour, jamSelesaiMinute] = jam_selesai.split(':').map(Number);
-        
-        const totalMulai = jamMulaiHour * 60 + jamMulaiMinute;
-        const totalSelesai = jamSelesaiHour * 60 + jamSelesaiMinute;
-
-        if (totalSelesai <= totalMulai) {
+        if (jamSelesaiHour * 60 + jamSelesaiMinute <= jamMulaiHour * 60 + jamMulaiMinute) {
             return res.status(400).json({
                 success: false,
                 message: "Jam selesai harus setelah jam mulai"
             });
         }
 
-        // Cek konflik dengan semua 4 kondisi overlap
-        const [conflictKelas, conflictGuru] = await Promise.all([
-            prisma.jadwal.findFirst({
-                where: {
-                    kelas_id: parseInt(kelas_id),
-                    hari: hari.toUpperCase(),
-                    deleted_at: null,
-                    NOT: { id: parseInt(id) },
-                    OR: [
-                        {
-                            AND: [
-                                { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                                { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }
-                            ]
-                        },
-                        {
-                            AND: [
-                                { jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } },
-                                { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                            ]
-                        },
-                        {
-                            AND: [
-                                { jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                                { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                            ]
-                        },
-                        {
-                            AND: [
-                                { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                                { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                            ]
-                        }
-                    ]
-                }
-            }),
-            prisma.jadwal.findFirst({
-                where: {
-                    guru_id: parseInt(guru_id),
-                    hari: hari.toUpperCase(),
-                    deleted_at: null,
-                    NOT: { id: parseInt(id) },
-                    OR: [
-                        {
-                            AND: [
-                                { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                                { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }
-                            ]
-                        },
-                        {
-                            AND: [
-                                { jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } },
-                                { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                            ]
-                        },
-                        {
-                            AND: [
-                                { jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                                { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                            ]
-                        },
-                        {
-                            AND: [
-                                { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
-                                { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
-                            ]
-                        }
-                    ]
-                }
-            })
-        ]);
+        const overlapCondition = {
+            jam_mulai: { lt: jam_selesai },
+            jam_selesai: { gt: jam_mulai }
+        };
 
-        if (conflictKelas) {
-            return res.status(409).json({
-                success: false,
-                message: "Jadwal bentrok dengan jadwal kelas lain"
-            });
-        }
-
-        if (conflictGuru) {
-            return res.status(409).json({
-                success: false,
-                message: "Guru sudah memiliki jadwal pada waktu yang sama"
-            });
-        }
-
-        // Update jadwal
-        const updatedJadwal = await prisma.jadwal.update({
+        const conflictKelas = await prisma.jadwal.findFirst({
             where: {
-                id: parseInt(id)
-            },
-            data: {
-                hari: hari.toUpperCase(),
+                id: { not: jadwalId },
                 kelas_id: parseInt(kelas_id),
-                mapel_id: parseInt(mapel_id),
-                guru_id: parseInt(guru_id),
-                jam_mulai: new Date(`1970-01-01T${jamMulaiTime}`),
-                jam_selesai: new Date(`1970-01-01T${jamSelesaiTime}`),
-                updated_at: new Date()
-            },
-            include: {
-                kelas: {
-                    select: {
-                        kelas: true,
-                        jurusan: {
-                            select: {
-                                nama_jurusan: true
-                            }
-                        }
-                    }
-                },
-                mata_pelajaran: {
-                    select: {
-                        nama_mapel: true
-                    }
-                },
-                guru: {
-                    select: {
-                        nama: true
-                    }
-                }
+                hari: hariNormalized,
+                ...overlapCondition
             }
         });
 
-        // Format response
-        const formattedJadwal = {
-            id: updatedJadwal.id,
-            hari: updatedJadwal.hari,
-            jam_mulai: formatTime(updatedJadwal.jam_mulai),
-            jam_selesai: formatTime(updatedJadwal.jam_selesai),
-            jam_lengkap: `${formatTime(updatedJadwal.jam_mulai)} - ${formatTime(updatedJadwal.jam_selesai)}`,
-            kelas: updatedJadwal.kelas,
-            mata_pelajaran: updatedJadwal.mata_pelajaran,
-            guru: updatedJadwal.guru,
-            updated_at: formatDateTime(updatedJadwal.updated_at)
-        };
+        const conflictGuru = await prisma.jadwal.findFirst({
+            where: {
+                id: { not: jadwalId },
+                guru_id: parseInt(guru_id),
+                hari: hariNormalized,
+                ...overlapCondition
+            }
+        });
+
+        if (conflictKelas) {
+            return res.status(409).json({ success: false, message: "Jadwal bentrok dengan jadwal kelas lain" });
+        }
+        if (conflictGuru) {
+            return res.status(409).json({ success: false, message: "Guru sudah memiliki jadwal pada waktu yang sama" });
+        }
+
+        const updatedJadwal = await prisma.jadwal.update({
+            where: { id: jadwalId },
+            data: {
+                hari: hariNormalized,
+                kelas_id: parseInt(kelas_id),
+                mapel_id: parseInt(mapel_id),
+                guru_id: parseInt(guru_id),
+                jam_mulai: jam_mulai,
+                jam_selesai: jam_selesai,
+                updated_at: new Date()
+            },
+            include: {
+                kelas: { select: { kelas: true, jurusan: true } },
+                mata_pelajaran: { select: { nama_mapel: true } },
+                guru: { select: { nama: true } }
+            }
+        });
 
         return res.status(200).json({
             success: true,
             message: "Berhasil mengupdate jadwal",
-            data: formattedJadwal
+            data: {
+                id: updatedJadwal.id,
+                hari: updatedJadwal.hari,
+                jam_mulai: formatJam(updatedJadwal.jam_mulai),
+                jam_selesai: formatJam(updatedJadwal.jam_selesai),
+                jam_lengkap: `${formatJam(updatedJadwal.jam_mulai)} - ${formatJam(updatedJadwal.jam_selesai)}`,
+                kelas: updatedJadwal.kelas,
+                mata_pelajaran: updatedJadwal.mata_pelajaran,
+                guru: updatedJadwal.guru,
+                updated_at: formatDateTime(updatedJadwal.updated_at)
+            }
         });
+
     } catch (error) {
+        if (error.code === 'P2002') {
+            return res.status(409).json({
+                success: false,
+                message: "Jadwal dengan kombinasi kelas, hari, dan jam mulai ini sudah ada"
+            });
+        }
         console.error("Error updating jadwal:", error);
         return res.status(500).json({
             success: false,
@@ -623,42 +434,254 @@ const updateJadwal = async (req, res) => {
     }
 };
 
-// delete jadwal 
+// delete jadwal (hard delete)
 const deleteJadwal = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Cek apakah jadwal ada
-        const existingJadwal = await prisma.jadwal.findFirst({
-            where: {
-                id: parseInt(id),
-                deleted_at: null
-            }
+        const existingJadwal = await prisma.jadwal.findUnique({
+            where: { id: parseInt(id) }
+        });
+        if (!existingJadwal) {
+            return res.status(404).json({ success: false, message: "Jadwal tidak ditemukan" });
+        }
+
+        await prisma.jadwal.delete({
+            where: { id: parseInt(id) }
         });
 
-        if (!existingJadwal) {
-            return res.status(404).json({
+        return res.status(200).json({ success: true, message: "Berhasil menghapus jadwal" });
+
+    } catch (error) {
+        console.error("Error deleting jadwal:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
+
+// Import Jadwal dari XLSX
+const importJadwal = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: "File tidak ditemukan" });
+        }
+
+        const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+
+        const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        const headerRowIdx = rawRows.findIndex(row => row.includes("HARI"));
+
+        if (headerRowIdx === -1) {
+            return res.status(400).json({
                 success: false,
-                message: "Jadwal tidak ditemukan"
+                message: "Header kolom tidak ditemukan. Pastikan terdapat kolom bernama 'HARI'",
             });
         }
 
-        // Soft delete jadwal 
-        await prisma.jadwal.update({
-            where: {
-                id: parseInt(id)
-            },
-            data: {
-                deleted_at: new Date()
+        const headers = rawRows[headerRowIdx];
+        const rows = rawRows
+            .slice(headerRowIdx + 1)
+            .filter(row => row.some(v => v !== ""))
+            .map(row => Object.fromEntries(headers.map((h, i) => [h, row[i] ?? ""])));
+
+        if (rows.length === 0) {
+            return res.status(400).json({ success: false, message: "File kosong atau tidak ada data" });
+        }
+
+        const VALID_HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+        const REQUIRED_COLUMNS = ["HARI", "KELAS", "JURUSAN", "NAMA_MAPEL", "NAMA_GURU", "JAM_MULAI", "JAM_SELESAI"];
+
+        const missingCols = REQUIRED_COLUMNS.filter(col => !headers.includes(col));
+        if (missingCols.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Kolom tidak lengkap: ${missingCols.join(", ")}`,
+            });
+        }
+
+        let created = 0;
+        let skipped = 0;
+        const errors = [];
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const rowNum = i + 2;
+
+            const idRaw = row["ID"] !== undefined ? String(row["ID"]).trim() : "";
+            const id = idRaw !== "" && !isNaN(parseInt(idRaw)) ? parseInt(idRaw) : null;
+
+            const hariRaw = String(row["HARI"] || "").trim();
+            const hari = hariRaw.charAt(0).toUpperCase() + hariRaw.slice(1).toLowerCase();
+
+            const kelasStr = String(row["KELAS"] || "").trim();
+            const jurusan = String(row["JURUSAN"] || "").trim();
+            const namaMapel = String(row["NAMA_MAPEL"] || "").trim();
+            const namaGuru = String(row["NAMA_GURU"] || "").trim();
+            const jamMulai = normalizeJamValue(row["JAM_MULAI"]);
+            const jamSelesai = normalizeJamValue(row["JAM_SELESAI"]);
+
+            if (!hari && !kelasStr && !namaMapel && !namaGuru) continue;
+
+            if (id !== null) {
+                const existing = await prisma.jadwal.findUnique({ where: { id } });
+                if (!existing) {
+                    errors.push({ row: rowNum, pesan: `Jadwal dengan ID "${id}" tidak ditemukan di sistem` });
+                    skipped++;
+                    continue;
+                }
             }
-        });
+
+            if (!VALID_HARI.includes(hari)) {
+                errors.push({ row: rowNum, pesan: `Hari tidak valid: "${hari}"` });
+                skipped++;
+                continue;
+            }
+
+            if (!kelasStr || !jurusan) {
+                errors.push({ row: rowNum, pesan: "KELAS dan JURUSAN wajib diisi" });
+                skipped++;
+                continue;
+            }
+
+            if (!namaMapel) {
+                errors.push({ row: rowNum, pesan: "NAMA_MAPEL wajib diisi" });
+                skipped++;
+                continue;
+            }
+
+            if (!namaGuru) {
+                errors.push({ row: rowNum, pesan: "NAMA_GURU wajib diisi" });
+                skipped++;
+                continue;
+            }
+
+            const timeRegex = /^\d{2}:\d{2}$/;
+            if (!timeRegex.test(jamMulai) || !timeRegex.test(jamSelesai)) {
+                errors.push({ row: rowNum, pesan: `Format jam tidak valid — gunakan HH:MM (mulai: "${jamMulai}", selesai: "${jamSelesai}")` });
+                skipped++;
+                continue;
+            }
+
+            const [mH, mM] = jamMulai.split(":").map(Number);
+            const [sH, sM] = jamSelesai.split(":").map(Number);
+            if (sH * 60 + sM <= mH * 60 + mM) {
+                errors.push({ row: rowNum, pesan: `Jam selesai (${jamSelesai}) harus setelah jam mulai (${jamMulai})` });
+                skipped++;
+                continue;
+            }
+
+            const kelasRecord = await prisma.kelas.findFirst({
+                where: { kelas: kelasStr, jurusan: { equals: jurusan, mode: "insensitive" }, deleted_at: null }
+            });
+            if (!kelasRecord) {
+                errors.push({ row: rowNum, pesan: `Kelas "${kelasStr} ${jurusan}" tidak ditemukan di sistem` });
+                skipped++;
+                continue;
+            }
+
+            const mapelRecord = await prisma.mataPelajaran.findFirst({
+                where: { nama_mapel: { equals: namaMapel, mode: "insensitive" }, deleted_at: null }
+            });
+            if (!mapelRecord) {
+                errors.push({ row: rowNum, pesan: `Mata pelajaran "${namaMapel}" tidak ditemukan di sistem` });
+                skipped++;
+                continue;
+            }
+
+            const guruRecord = await prisma.guru.findFirst({
+                where: { nama: { equals: namaGuru, mode: "insensitive" }, deleted_at: null }
+            });
+            if (!guruRecord) {
+                errors.push({ row: rowNum, pesan: `Guru "${namaGuru}" tidak ditemukan di sistem` });
+                skipped++;
+                continue;
+            }
+
+            const overlapCondition = {
+                jam_mulai: { lt: jamSelesai },
+                jam_selesai: { gt: jamMulai }
+            };
+
+            const conflictWhereClause = {
+                hari,
+                ...overlapCondition,
+                ...(id !== null && { id: { not: id } })
+            };
+
+            const conflictKelas = await prisma.jadwal.findFirst({
+                where: {
+                    kelas_id: kelasRecord.id,
+                    ...conflictWhereClause
+                }
+            });
+            if (conflictKelas) {
+                errors.push({ row: rowNum, pesan: `Jadwal bentrok dengan jadwal kelas ${kelasStr} ${jurusan} pada hari ${hari} jam ${jamMulai}–${jamSelesai}` });
+                skipped++;
+                continue;
+            }
+
+            const conflictGuru = await prisma.jadwal.findFirst({
+                where: {
+                    guru_id: guruRecord.id,
+                    ...conflictWhereClause
+                }
+            });
+            if (conflictGuru) {
+                errors.push({ row: rowNum, pesan: `Guru "${namaGuru}" sudah memiliki jadwal pada hari ${hari} jam ${jamMulai}–${jamSelesai}` });
+                skipped++;
+                continue;
+            }
+
+            try {
+                if (id !== null) {
+                     await prisma.jadwal.update({
+                        where: { id },
+                        data: {
+                             hari,
+                             kelas_id: kelasRecord.id,
+                             mapel_id: mapelRecord.id,
+                             guru_id: guruRecord.id,
+                             jam_mulai: jamMulai,
+                             jam_selesai: jamSelesai,
+                             updated_at: new Date()
+                         }
+                    });
+                } else {
+                    await prisma.jadwal.create({
+                        data: {
+                            hari,
+                            kelas_id: kelasRecord.id,
+                            mapel_id: mapelRecord.id,
+                            guru_id: guruRecord.id,
+                            jam_mulai: jamMulai,
+                            jam_selesai: jamSelesai
+                        }
+                    });
+                }
+                created++;
+            } catch (err) {
+                if (err.code === 'P2002') {
+                    errors.push({ row: rowNum, pesan: `Kombinasi kelas, hari, jam mulai sudah ada di sistem` });
+                } else {
+                    errors.push({ row: rowNum, pesan: `Gagal memproses baris: ${err.message}` });
+                }
+                skipped++;
+            }
+        }
 
         return res.status(200).json({
             success: true,
-            message: "Berhasil menghapus jadwal"
+            message: `Import selesai: ${created} jadwal diproses (tambah/update), ${skipped} dilewati`,
+            data: { created, skipped, errors }
         });
+
     } catch (error) {
-        console.error("Error deleting jadwal:", error);
+        console.error("Error in importJadwal:", error);
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
@@ -671,5 +694,6 @@ module.exports = {
     getAllJadwal,
     createJadwal,
     updateJadwal,
-    deleteJadwal
+    deleteJadwal,
+    importJadwal
 };
