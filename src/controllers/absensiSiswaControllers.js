@@ -704,6 +704,26 @@ const getRekapSiswaSaya = async (req, res) => {
             });
         }
 
+        const dates = records.map((r) => r.tanggal);
+
+        const absensiHarianList = await prisma.absensiSiswa.findMany({
+            where: {
+                siswa_id: siswaId,
+                tanggal: { in: dates },
+                deleted_at: null,
+            },
+            select: {
+                tanggal: true,
+                tap_in: true,
+                tap_out: true,
+                status_tapin: true,
+            },
+        });
+
+        const absensiMap = new Map(
+            absensiHarianList.map((a) => [a.tanggal.toISOString().slice(0, 10), a])
+        );
+
         const statistik = hitungStatistikFinal(records);
 
         return res.status(200).json({
@@ -711,17 +731,24 @@ const getRekapSiswaSaya = async (req, res) => {
             message: "Berhasil mendapatkan rekap absensi pribadi",
             data: {
                 statistik,
-                riwayat: records.map((r) => ({
-                    tanggal: formatDate(r.tanggal),
-                    status_final: r.status_final,
-                    total_hadir: r.total_hadir,
-                    total_izin: r.total_izin,
-                    total_sakit: r.total_sakit,
-                    total_alpha: r.total_alpha,
-                    total_mapel: r.total_mapel,
-                    is_finalized: r.is_finalized,
-                    finalized_at: r.finalized_at ? formatDateTime(r.finalized_at) : null,
-                })),
+                riwayat: records.map((r) => {
+                    const tglKey = r.tanggal.toISOString().slice(0, 10);
+                    const absHarian = absensiMap.get(tglKey);
+                    return {
+                        tanggal: formatDate(r.tanggal),
+                        status_final: r.status_final,
+                        total_hadir: r.total_hadir,
+                        total_izin: r.total_izin,
+                        total_sakit: r.total_sakit,
+                        total_alpha: r.total_alpha,
+                        total_mapel: r.total_mapel,
+                        is_finalized: r.is_finalized,
+                        finalized_at: r.finalized_at ? formatDateTime(r.finalized_at) : null,
+                        tap_in: absHarian?.tap_in ? absHarian.tap_in : null,
+                        tap_out: absHarian?.tap_out ? absHarian.tap_out : null,
+                        status_tapin: absHarian?.status_tapin ?? null,
+                    };
+                }),
             }
         });
     } catch (error) {

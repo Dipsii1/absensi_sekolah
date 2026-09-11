@@ -351,29 +351,43 @@ const loginSiswa = async (req, res) => {
                 message: "Role SISWA belum terdaftar di tabel roles. Tambahkan role ini dulu sebelum siswa bisa login.",
             });
         }
- 
-        // username di form login siswa = NIPD
+
+        // username di form login siswa = NIPD / NISN / username Moodle
         const nipd = username;
- 
-        // Cari siswa berdasarkan NIPD (termasuk relasi user kalau sudah ada)
+
+        // Cari siswa berdasarkan NIPD, NISN, atau username/email di tabel User
         let siswa = await prisma.siswa.findFirst({
-            where: { nipd },
+            where: {
+                OR: [
+                    { nipd: username },
+                    { nisn: username },
+                    { user: { username: username } },
+                    { user: { email: username } },
+                ],
+                deleted_at: null,
+            },
             include: { user: true },
         });
- 
+
         const hashedPassword = await bcrypt.hash(password, 10);
- 
+
         if (!siswa) {
             // Ambil nama asli dari profil Moodle (kalau tersedia)
-            const moodleProfile = await getMoodleProfile(moodleData.token)
+            const moodleProfile = await getMoodleProfile(moodleData.token);
+            const namaSiswa = moodleProfile?.nama || nipd;
+
+            // Cek apakah user dengan username ini sudah ada sebelumnya
+            const existingUser = await prisma.user.findFirst({
+                where: { username: nipd },
+            });
 
             // Jika siswa belum ada, buat baru (siswa + user) dalam satu transaksi
             const result = await prisma.$transaction(async (tx) => {
                 const siswaBaru = await tx.siswa.create({
                     data: {
-                        nama: moodleProfile?.nama || nipd,
+                        nama: namaSiswa,
                         nisn: `NISN-${nipd}`,
-                        nipd,
+                        nipd: nipd,
                         nik: `NIK-${nipd}`,
                         tempat_lahir: "-",
                         tgl_lahir: new Date("2000-01-01"),
@@ -382,65 +396,98 @@ const loginSiswa = async (req, res) => {
                         jurusan: "-",
                     },
                 });
- 
-                const userBaru = await tx.user.create({
+
+                let userBaru;
+                if (existingUser) {
+                    userBaru = await tx.user.update({
+                        where: { id: existingUser.id },
+                        data: {
+                            siswa_id: siswaBaru.id,
+                            password: hashedPassword,
+                            deleted_at: null,
+                        },
+                    });
+                } else {
+                    userBaru = await tx.user.create({
+                        data: {
+                            username: nipd,
+                            password: hashedPassword,
+                            siswa_id: siswaBaru.id,
+                            userRole: {
+                                create: [{ role_id: siswaRole.id }],
+                            },
+                        },
+                    });
+                }
+
+                return { siswaBaru, userBaru };
+            });
+
+            siswa = { ...result.siswaBaru, user: result.userBaru };
+        } else {
+            // Siswa ditemukan di database! Pastikan relasi ke User sudah terhubung.
+            let userTerkait = siswa.user || await prisma.user.findFirst({
+                where: {
+                    OR: [
+                        { username: nipd },
+                        { siswa_id: siswa.id },
+                    ],
+                },
+            });
+
+            if (!userTerkait) {
+                // Buat user baru untuk siswa ini
+                userTerkait = await prisma.user.create({
                     data: {
                         username: nipd,
                         password: hashedPassword,
-                        siswa_id: siswaBaru.id,
+                        siswa_id: siswa.id,
                         userRole: {
                             create: [{ role_id: siswaRole.id }],
                         },
                     },
                 });
- 
-                return { siswaBaru, userBaru };
-            });
- 
-            siswa = { ...result.siswaBaru, user: result.userBaru };
-        } else if (!siswa.user) {
-            // Siswa ada tapi belum punya akun user -> buat baru
-            const userBaru = await prisma.user.create({
-                data: {
-                    username: nipd,
-                    password: hashedPassword,
-                    siswa_id: siswa.id,
-                    userRole: {
-                        create: [{ role_id: siswaRole.id }],
+            } else {
+                // User sudah ada -> pastikan siswa_id terisi & deleted_at null
+                userTerkait = await prisma.user.update({
+                    where: { id: userTerkait.id },
+                    data: {
+                        siswa_id: siswa.id,
+                        password: hashedPassword,
+                        deleted_at: null,
                     },
-                },
-            });
- 
-            siswa.user = userBaru;
-        } else if (siswa.user.deleted_at !== null) {
-            // Akun ada tapi soft-deleted -> restore
-            siswa.user = await prisma.user.update({
-                where: { id: siswa.user.id },
-                data: {
-                    deleted_at: null,
-                    password: hashedPassword,
-                },
-            });
- 
-            await prisma.userRole.deleteMany({ where: { user_id: siswa.user.id } });
-            await prisma.userRole.create({
-                data: {
-                    user_id: siswa.user.id,
-                    role_id: siswaRole.id,
-                },
-            });
- 
-            invalidateRoleCache();
+                });
+
+                // Pastikan role SISWA ada
+                const existingRole = await prisma.userRole.findUnique({
+                    where: {
+                        user_id_role_id: {
+                            user_id: userTerkait.id,
+                            role_id: siswaRole.id,
+                        },
+                    },
+                });
+
+                if (!existingRole) {
+                    await prisma.userRole.create({
+                        data: {
+                            user_id: userTerkait.id,
+                            role_id: siswaRole.id,
+                        },
+                    });
+                }
+            }
+
+            siswa.user = userTerkait;
         }
-        // Jika user sudah ada dan tidak deleted -> lanjut login normal, tidak ada aksi tambahan
- 
+
         const userWithRoles = await prisma.user.findFirst({
             where: { id: siswa.user.id },
             select: userSelect,
         });
- 
+
         const roles = extractRoles(userWithRoles.userRole);
- 
+
         const accessToken = jwt.sign(
             {
                 id: userWithRoles.id,
@@ -677,6 +724,14 @@ const login = async (req, res) => {
                             nomor_telepon: true,
                         },
                     },
+                    siswa: {
+                        select: {
+                            id: true,
+                            nisn: true,
+                            nipd: true,
+                            nama: true,
+                        },
+                    },
                 },
             });
 
@@ -709,6 +764,7 @@ const login = async (req, res) => {
                 role_ids: roles.map((r) => r.id),
                 role_names: roles.map((r) => r.name.toUpperCase()),
                 guru_id: user.guru_id,
+                siswa_id: user.siswa_id,
             },
             process.env.JWT_SECRET,
             {

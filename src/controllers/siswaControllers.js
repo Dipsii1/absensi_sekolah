@@ -298,6 +298,37 @@ const createSiswa = async (req, res) => {
             }
         });
 
+        // Handle RFID jika ada di payload (rfid atau uid_rfid)
+        const inputRfidCreate = req.body.uid_rfid !== undefined ? req.body.uid_rfid : req.body.rfid;
+        if (inputRfidCreate && String(inputRfidCreate).trim()) {
+            const uidStr = String(inputRfidCreate).trim();
+            try {
+                const existingRfid = await prisma.RFID.findFirst({
+                    where: { uid_rfid: uidStr }
+                });
+                if (existingRfid) {
+                    await prisma.RFID.update({
+                        where: { id: existingRfid.id },
+                        data: {
+                            siswa_id: newSiswa.id,
+                            is_active: true,
+                            deleted_at: null
+                        }
+                    });
+                } else {
+                    await prisma.RFID.create({
+                        data: {
+                            uid_rfid: uidStr,
+                            siswa_id: newSiswa.id,
+                            is_active: true
+                        }
+                    });
+                }
+            } catch (rfidErr) {
+                console.warn("Gagal menyimpan RFID saat createSiswa:", rfidErr.message);
+            }
+        }
+
         return res.status(201).json({
             success: true,
             message: "Berhasil menambahkan siswa baru",
@@ -485,6 +516,63 @@ const updateSiswa = async (req, res) => {
                 }
             });
         });
+
+        // Handle RFID jika ada di payload (rfid atau uid_rfid)
+        const inputRfidUpdate = req.body.uid_rfid !== undefined ? req.body.uid_rfid : req.body.rfid;
+        if (inputRfidUpdate !== undefined) {
+            const uidStr = String(inputRfidUpdate || "").trim();
+            try {
+                const activeRfid = await prisma.RFID.findFirst({
+                    where: {
+                        siswa_id: id,
+                        is_active: true,
+                        deleted_at: null
+                    }
+                });
+
+                if (!uidStr) {
+                    if (activeRfid) {
+                        await prisma.RFID.update({
+                            where: { id: activeRfid.id },
+                            data: { is_active: false, deleted_at: new Date() }
+                        });
+                    }
+                } else {
+                    if (activeRfid) {
+                        if (activeRfid.uid_rfid !== uidStr) {
+                            await prisma.RFID.update({
+                                where: { id: activeRfid.id },
+                                data: { uid_rfid: uidStr, is_active: true }
+                            });
+                        }
+                    } else {
+                        const existingUid = await prisma.RFID.findFirst({
+                            where: { uid_rfid: uidStr }
+                        });
+                        if (existingUid) {
+                            await prisma.RFID.update({
+                                where: { id: existingUid.id },
+                                data: {
+                                    siswa_id: id,
+                                    is_active: true,
+                                    deleted_at: null
+                                }
+                            });
+                        } else {
+                            await prisma.RFID.create({
+                                data: {
+                                    uid_rfid: uidStr,
+                                    siswa_id: id,
+                                    is_active: true
+                                }
+                            });
+                        }
+                    }
+                }
+            } catch (rfidErr) {
+                console.warn("Gagal meng-update RFID saat updateSiswa:", rfidErr.message);
+            }
+        }
 
         return res.status(200).json({
             success: true,

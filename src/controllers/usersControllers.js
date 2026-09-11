@@ -45,6 +45,7 @@ const getAllUsers = async (req, res) => {
                     username: true,
                     email: true,
                     guru_id: true,
+                    siswa_id: true,
                     userRole: {
                         include: {
                             role: { select: { id: true, name: true } }
@@ -56,6 +57,13 @@ const getAllUsers = async (req, res) => {
                             NIP: true,
                             nama: true,
                             nomor_telepon: true
+                        }
+                    },
+                    siswa: {
+                        select: {
+                            id: true,
+                            nama: true,
+                            nisn: true
                         }
                     },
                     created_at: true,
@@ -100,6 +108,7 @@ const getUserById = async (req, res) => {
                 username: true,
                 email: true,
                 guru_id: true,
+                siswa_id: true,
                 userRole: {
                     include: {
                         role: { select: { id: true, name: true } }
@@ -113,6 +122,13 @@ const getUserById = async (req, res) => {
                         nomor_telepon: true,
                         alamat: true,
                         tanggal_lahir: true
+                    }
+                },
+                siswa: {
+                    select: {
+                        id: true,
+                        nama: true,
+                        nisn: true
                     }
                 },
                 created_at: true,
