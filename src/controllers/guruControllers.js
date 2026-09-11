@@ -9,7 +9,6 @@ const getApiKey = () => {
     return `SARPRAS-STARBHAK${year}${month}`;
 };
 
-// get all guru (sync dari YSBO ke DB lokal)
 const getAllGuru = async (req, res) => {
     try {
         const ysboToken = req.headers["x-ysbo-token"];
@@ -19,7 +18,7 @@ const getAllGuru = async (req, res) => {
                 const client = axios.create({
                     baseURL: process.env.YSBO_API_BASE_URL,
                     headers: {
-                        "Authorization": `Basic ${ysboToken}`,
+                        "Authorization": `Bearer ${ysboToken}`,
                         "x-api-key": getApiKey(),
                     },
                 });
@@ -27,50 +26,58 @@ const getAllGuru = async (req, res) => {
                 const { data: ysboData } = await client.get("/masterdata/list-staff");
 
                 if (ysboData.status_code === 200 && Array.isArray(ysboData.data)) {
+                    const filteredGuru = ysboData.data.filter((g) => g.id_school === "TB002");
+
                     const roleCache = await prisma.role.findFirst({
                         where: { name: "GURU" },
                     });
 
-                    await Promise.allSettled(
-                        ysboData.data
-                            .filter((g) => g.id_school === "TB002")
-                            .map(async (guru) => {
-                                // Upsert guru
-                                const upsertedGuru = await prisma.guru.upsert({
-                                    where: { NIP: guru.id },
-                                    update: { nama: guru.text.trim(), deleted_at: null },
-                                    create: {
-                                        NIP: guru.id,
-                                        nama: guru.text.trim(),
-                                        nomor_telepon: "-",
-                                        alamat: "-",
-                                        tanggal_lahir: new Date("2000-01-01"),
-                                    },
-                                });
-
-                                //Cek apakah user sudah ada
-                                const existingUser = await prisma.user.findFirst({
-                                    where: { guru_id: upsertedGuru.id, deleted_at: null },
-                                });
-
-                                if (!existingUser) {
-                                    // buat user baru dengan role GURU
-                                    await prisma.user.create({
-                                        data: {
-                                            username: guru.id,
-                                            password: "-",
-                                            guru_id: upsertedGuru.id,
-                                            userRole: {
-                                                create: [{ role_id: roleCache.id }],
-                                            },
+                    if (!roleCache) {
+                        console.warn("Sync YSBO gagal: Role GURU tidak ditemukan di database lokal");
+                    } else {
+                        await Promise.allSettled(
+                            filteredGuru.map(async (guru) => {
+                                try {
+                                    const upsertedGuru = await prisma.guru.upsert({
+                                        where: { NIP: guru.id },
+                                        update: { nama: guru.text.trim(), deleted_at: null },
+                                        create: {
+                                            NIP: guru.id,
+                                            nama: guru.text.trim(),
+                                            nomor_telepon: "-",
+                                            alamat: "-",
+                                            tanggal_lahir: new Date("2000-01-01"),
                                         },
                                     });
+
+                                    const existingUser = await prisma.user.findFirst({
+                                        where: { guru_id: upsertedGuru.id, deleted_at: null },
+                                    });
+
+                                    if (!existingUser) {
+                                        await prisma.user.create({
+                                            data: {
+                                                username: guru.id,
+                                                password: "-",
+                                                guru_id: upsertedGuru.id,
+                                                userRole: {
+                                                    create: [{ role_id: roleCache.id }],
+                                                },
+                                            },
+                                        });
+                                    }
+                                } catch (err) {
+                                    console.error("Error upserting guru", guru.id, ":", err.message);
                                 }
                             })
-                    );
+                        );
+                    }
                 }
             } catch (ysboError) {
-                console.warn("Sync YSBO gagal:", ysboError.message);
+                console.error("Sync YSBO gagal:", ysboError.message);
+                if (ysboError.response) {
+                    console.error("YSBO Error Response:", ysboError.response.status, ysboError.response.data);
+                }
             }
         }
 

@@ -17,7 +17,8 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
 ## 🚀 Fitur Utama
 
 - **Authentication & Authorization**
-  - Login dengan JWT, password di-hash menggunakan bcrypt.
+  - Login staf/guru wajib melalui YBSMO; backend menerbitkan JWT setelah autentikasi berhasil.
+  - Data guru menggunakan `id_user` YBSMO sebagai `NIP`; akun lokal dihubungkan ke guru yang sudah disinkronkan.
   - Role: `SUPER_ADMIN`, `ADMIN`, `GURU`, `WALAS`, `KESISWAAN`.
   - Middleware `requirePokja` untuk akses yang memerlukan keanggotaan Pokja.
 
@@ -177,6 +178,13 @@ TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
 PORT=3000
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
+
+YSBO_API_BASE_URL="https://ysbmo.example.com/api/v1"
+URL_FRONTEND="http://localhost:4321"
+MOODLE_BASE_URL="https://moodle.example.com"
+
+SUPER_ADMIN_USERNAME="your_super_admin_username"
+SUPER_ADMIN_PASSWORD="your_super_admin_password"
 ```
 
 ### 4. Setup Database
@@ -188,8 +196,11 @@ npx prisma generate
 # Jalankan migrasi database
 npx prisma migrate dev --name init
 
-# (Opsional) Seed data awal
+# Seed data awal
 npm run seed
+
+# CATATAN: seed saat ini menghapus SEMUA data transaksi & master,
+# lalu membuat ulang satu akun SUPER_ADMIN dari variabel .env.
 ```
 
 ### 5. Jalankan Redis
@@ -271,7 +282,7 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 | Method | Endpoint | Auth | Deskripsi |
 |--------|----------|------|-----------|
-| `POST` | `/auth/login` | ❌ | Login user (staff/guru via YSBO atau lokal) |
+| `POST` | `/auth/login` | ❌ | Login staf/guru wajib melalui YBSMO; mengembalikan `accessToken`, `ysboToken`, dan data user |
 | `POST` | `/auth/moodle-login` | ❌ | Login siswa via Moodle, mengembalikan JWT + data siswa |
 | `POST` | `/auth/logout` | 🔒 | Logout & invalidasi sesi |
 | `GET` | `/auth/me` | 🔒 | Ambil data user yang sedang login (termasuk relasi `siswa`, `kelas`, `rfid` bila ada) |

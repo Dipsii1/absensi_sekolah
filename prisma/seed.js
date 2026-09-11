@@ -4,33 +4,80 @@ const prisma = new PrismaClient();
 
 const seedRole = require("./seeders/roleSeeder");
 
-async function seedSuperAdmin(prisma, roleMap) {
-    console.log("👤 Seeding Super Admin...");
+async function resetData() {
+    console.log("🧹 Menghapus semua data kecuali roles...");
 
-    const hashedPassword = await bcrypt.hash("password123", 10);
+    await prisma.$transaction([
+        prisma.detailAbsensiSiswa.deleteMany(),
+        prisma.absensiSiswa.deleteMany(),
+        prisma.rFID.deleteMany(),
+        prisma.kenaikanKelas.deleteMany(),
+        prisma.finalAbsensi.deleteMany(),
+        prisma.permintaanStatusAbsensi.deleteMany(),
+        prisma.userRole.deleteMany(),
+        prisma.user.deleteMany(),
+        prisma.pokjaUser.deleteMany(),
+        prisma.siswa.deleteMany(),
+        prisma.orangTua.deleteMany(),
+        prisma.jadwal.deleteMany(),
+        prisma.kelas.deleteMany(),
+        prisma.tahun.deleteMany(),
+        prisma.mataPelajaran.deleteMany(),
+        prisma.guru.deleteMany(),
+    ]);
+
+    console.log("  ✔ Semua data transaksi dan master berhasil dihapus");
+}
+
+async function seedSuperAdminFromEnv(prisma, roleMap) {
+    console.log("👤 Seeding Super Admin dari environment...");
+
+    const username = process.env.SUPER_ADMIN_USERNAME;
+    const rawPassword = process.env.SUPER_ADMIN_PASSWORD;
+
+    if (!username || !rawPassword) {
+        throw new Error("Environment SUPER_ADMIN_USERNAME dan SUPER_ADMIN_PASSWORD wajib diisi di .env");
+    }
+
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
+    const superAdminRole = roleMap["SUPER_ADMIN"];
+
+    if (!superAdminRole) {
+        throw new Error("Role SUPER_ADMIN tidak ditemukan");
+    }
 
     let user = await prisma.user.findFirst({
-        where: { email: "superadmin@sekolah.sch.id", deleted_at: null },
+        where: { username },
     });
 
-    if (!user) {
+    if (user) {
+        user = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                password: hashedPassword,
+                email: process.env.SUPER_ADMIN_EMAIL || null,
+                deleted_at: null,
+                guru_id: null,
+                siswa_id: null,
+            },
+        });
+    } else {
         user = await prisma.user.create({
             data: {
-                username: "superadmin",
-                email: "superadmin@sekolah.sch.id",
+                username,
+                email: process.env.SUPER_ADMIN_EMAIL || null,
                 password: hashedPassword,
                 guru_id: null,
+                siswa_id: null,
             },
         });
     }
-
-    const role = roleMap["SUPER_ADMIN"];
 
     const existingRole = await prisma.userRole.findUnique({
         where: {
             user_id_role_id: {
                 user_id: user.id,
-                role_id: role.id,
+                role_id: superAdminRole.id,
             },
         },
     });
@@ -39,24 +86,28 @@ async function seedSuperAdmin(prisma, roleMap) {
         await prisma.userRole.create({
             data: {
                 user_id: user.id,
-                role_id: role.id,
+                role_id: superAdminRole.id,
             },
         });
     }
 
-    console.log(`  ✔ SUPER_ADMIN | superadmin | superadmin@sekolah.sch.id`);
+    console.log(`  ✔ SUPER_ADMIN | ${username}`);
     return user;
 }
 
 async function main() {
-    console.log("🌱 Mulai seeding roles & superadmin...\n");
+    console.log("🌱 Mulai seeding...\n");
 
     const roleMap = await seedRole(prisma);
-    await seedSuperAdmin(prisma, roleMap);
+    await resetData();
+    await seedSuperAdminFromEnv(prisma, roleMap);
 
     console.log("\n✅ Seeding selesai!");
 }
 
 main()
-    .catch(console.error)
+    .catch((error) => {
+        console.error("\n❌ Seeding gagal:", error.message);
+        process.exit(1);
+    })
     .finally(() => prisma.$disconnect());

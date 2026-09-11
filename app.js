@@ -49,7 +49,7 @@ app.use(cors({
   origin: process.env.URL_FRONTEND || "http://localhost:4321",
   credentials: true,
   methods: ['GET', 'POST', 'PUT','PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-ysbo-token']
 }));
 
 // routes

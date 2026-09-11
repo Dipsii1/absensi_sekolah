@@ -1,6 +1,7 @@
 const prisma = require("../config/prisma");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const axios = require("axios");
 
 let _roleCache = null;
 
@@ -537,9 +538,7 @@ const login = async (req, res) => {
             });
         }
 
-        let user = null;
-        let ysboUser = null;
-        let ysboSuccess = false;
+        let ysboUser;
 
         try {
             const ysboResponse = await fetch(`${process.env.YSBO_API_BASE_URL}/Auth/signIn-ysbmo`, {
@@ -557,108 +556,100 @@ const login = async (req, res) => {
 
             const ysboData = await ysboResponse.json();
 
-            if (ysboData.status_code === 200) {
-                ysboSuccess = true;
-                ysboUser = ysboData.data;
+            if (ysboData.status_code !== 200) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Username atau password YBSMO salah",
+                });
             }
+
+            ysboUser = ysboData.data;
+            console.log("Debug login: ysboUser keys:", Object.keys(ysboUser).join(", "));
+            console.log("Debug login: ysboUser values:", JSON.stringify(
+                Object.fromEntries(
+                    Object.entries(ysboUser).map(([k, v]) => {
+                        if (["token", "password", "access_token"].includes(k.toLowerCase())) return [k, "***"];
+                        return [k, typeof v === "string" ? v : typeof v];
+                    })
+                ),
+                null,
+                2
+            ));
         } catch (err) {
             console.error("YSBO API Error:", err.message);
+            return res.status(502).json({
+                success: false,
+                message: "Tidak dapat menghubungi server YBSMO",
+            });
         }
 
-        if (ysboSuccess) {
-            // Cari user TERMASUK yang sudah soft-deleted (bukan pakai deleted_at: null)
-            user = await prisma.user.findFirst({
-                where: {
-                    username: ysboUser.username,
-                },
-                include: {
-                    userRole: {
-                        include: {
-                            role: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                },
+        // Cari user termasuk yang soft-deleted
+        let user = await prisma.user.findFirst({
+            where: {
+                username: ysboUser.username,
+            },
+            include: {
+                userRole: {
+                    include: {
+                        role: {
+                            select: {
+                                id: true,
+                                name: true,
                             },
                         },
                     },
-                    guru: {
-                        select: {
-                            id: true,
-                            NIP: true,
-                            nama: true,
-                            nomor_telepon: true,
-                        },
+                },
+                guru: {
+                    select: {
+                        id: true,
+                        NIP: true,
+                        nama: true,
+                        nomor_telepon: true,
                     },
+                },
+            },
+        });
+
+        const roleCache = await getRoleCache();
+        const defaultRole = roleCache["GURU"];
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        if (!user) {
+            const staffId = ysboUser.id_user;
+
+            if (!staffId) {
+                return res.status(422).json({
+                    success: false,
+                    message: "Respons login YBSMO tidak memuat ID staff",
+                });
+            }
+
+            const guru = await prisma.guru.findUnique({
+                where: { NIP: staffId },
+            });
+
+            if (!guru) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Data guru belum disinkronkan dari YBSMO",
+                });
+            }
+
+            const existingUserByGuru = await prisma.user.findFirst({
+                where: {
+                    guru_id: guru.id,
+                    deleted_at: null,
                 },
             });
 
-            if (!user) {
-                // User belum ada → buat baru (guru + user)
-                const roleCache = await getRoleCache();
-                const defaultRole = roleCache["GURU"];
-
-                const hashedPassword = await bcrypt.hash(password, 10);
-
-                user = await prisma.$transaction(async (tx) => {
-                    const guruBaru = await tx.guru.create({
-                        data: {
-                            NIP: `YSBO-${ysboUser.username}`,
-                            nama: ysboUser.username,
-                            nomor_telepon: "-",
-                            alamat: "-",
-                            tanggal_lahir: new Date("2000-01-01"),
-                        },
-                    });
-
-                    return await tx.user.create({
-                        data: {
-                            username: ysboUser.username,
-                            email: ysboUser.email ?? null,
-                            password: hashedPassword,
-                            guru_id: guruBaru.id,
-                            userRole: {
-                                create: [
-                                    {
-                                        role_id: defaultRole.id,
-                                    },
-                                ],
-                            },
-                        },
-                        include: {
-                            userRole: {
-                                include: {
-                                    role: {
-                                        select: {
-                                            id: true,
-                                            name: true,
-                                        },
-                                    },
-                                },
-                            },
-                            guru: {
-                                select: {
-                                    id: true,
-                                    NIP: true,
-                                    nama: true,
-                                    nomor_telepon: true,
-                                },
-                            },
-                        },
-                    });
-                });
-            } else if (user.deleted_at !== null) {
-                // User ada tapi sudah di-hapus → RESTORE akun
-                const roleCache = await getRoleCache();
-                const defaultRole = roleCache["GURU"];
-                const hashedPassword = await bcrypt.hash(password, 10);
-
-                // Reset deleted_at dan password
+            if (existingUserByGuru) {
                 user = await prisma.user.update({
-                    where: { id: user.id },
+                    where: { id: existingUserByGuru.id },
                     data: {
-                        deleted_at: null,
+                        username: ysboUser.username,
+                        email: ysboUser.email ?? null,
                         password: hashedPassword,
+                        deleted_at: null,
                     },
                     include: {
                         userRole: {
@@ -681,29 +672,46 @@ const login = async (req, res) => {
                         },
                     },
                 });
-
-                // Reset role ke default GURU
-                await prisma.userRole.deleteMany({ where: { user_id: user.id } });
-                await prisma.userRole.create({
+            } else {
+                user = await prisma.user.create({
                     data: {
-                        user_id: user.id,
-                        role_id: defaultRole.id,
+                        username: ysboUser.username,
+                        email: ysboUser.email ?? null,
+                        password: hashedPassword,
+                        guru_id: guru.id,
+                        userRole: {
+                            create: [{ role_id: defaultRole.id }],
+                        },
+                    },
+                    include: {
+                        userRole: {
+                            include: {
+                                role: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                    },
+                                },
+                            },
+                        },
+                        guru: {
+                            select: {
+                                id: true,
+                                NIP: true,
+                                nama: true,
+                                nomor_telepon: true,
+                            },
+                        },
                     },
                 });
-
-                // Reset cache role
-                invalidateRoleCache();
             }
-            // Jika user ada dan tidak deleted → lanjut login normal (tidak perlu aksi tambahan)
-        }
-
-
-        // DEV: login pake user di prisma tanpa cek YSBO
-        else {
-            user = await prisma.user.findFirst({
-                where: {
-                    username,
+        } else if (user.deleted_at !== null) {
+            // User ada tapi sudah dihapus → restore
+            user = await prisma.user.update({
+                where: { id: user.id },
+                data: {
                     deleted_at: null,
+                    password: hashedPassword,
                 },
                 include: {
                     userRole: {
@@ -724,36 +732,20 @@ const login = async (req, res) => {
                             nomor_telepon: true,
                         },
                     },
-                    siswa: {
-                        select: {
-                            id: true,
-                            nisn: true,
-                            nipd: true,
-                            nama: true,
-                        },
-                    },
                 },
             });
 
-            if (!user) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Username atau password salah",
-                });
-            }
+            await prisma.userRole.deleteMany({ where: { user_id: user.id } });
+            await prisma.userRole.create({
+                data: {
+                    user_id: user.id,
+                    role_id: defaultRole.id,
+                },
+            });
 
-            const passwordMatch = await bcrypt.compare(
-                password,
-                user.password
-            );
-
-            if (!passwordMatch) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Username atau password salah",
-                });
-            }
+            invalidateRoleCache();
         }
+
         const roles = extractRoles(user.userRole);
 
         const accessToken = jwt.sign(
@@ -767,9 +759,7 @@ const login = async (req, res) => {
                 siswa_id: user.siswa_id,
             },
             process.env.JWT_SECRET,
-            {
-                expiresIn: "24h",
-            }
+            { expiresIn: "24h" }
         );
 
         const { password: _, ...userData } = user;
@@ -784,7 +774,7 @@ const login = async (req, res) => {
                 },
                 accessToken,
                 ysboToken: ysboUser?.token,
-                login_source: ysboSuccess ? "YSBO" : "LOCAL",
+                login_source: "YSBO",
             },
         });
     } catch (error) {
