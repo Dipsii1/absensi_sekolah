@@ -245,8 +245,7 @@ const deleteMapel = async (req, res) => {
 
         const usedInJadwal = await prisma.Jadwal.count({
             where: {
-                mapel_id: parseInt(id),
-                deleted_at: null
+                mapel_id: parseInt(id)
             }
         });
 
