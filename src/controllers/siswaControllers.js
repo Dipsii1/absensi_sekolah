@@ -91,6 +91,7 @@ const getAllSiswa = async (req, res) => {
         });
     }
 };
+
 // get siswa by ID
 const getSiswaById = async (req, res) => {
     try {
@@ -152,7 +153,7 @@ const getSiswaById = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
-            message: error.message
+            error: error.message
         });
     }
 };
@@ -174,27 +175,27 @@ const createSiswa = async (req, res) => {
             orangtua
         } = req.body;
 
-        // Validasi input wajib siswa
-        if (!nisn || !nipd || !nik || !nama || !tempat_lahir || !tgl_lahir || !jenis_kelamin || !agama || !jurusan || !nama_kelas) {
+        if (!nisn || !nama || !jurusan || !nama_kelas) {
             return res.status(400).json({
                 success: false,
-                message: "Semua field siswa wajib diisi (nisn, nipd, nik, nama, tempat_lahir, tgl_lahir, jenis_kelamin, agama, jurusan, nama_kelas)"
+                message: "Field wajib: nisn, nama, jurusan, nama_kelas"
             });
         }
 
-        // Validasi nisn, nipd & nik harus angka
+        // Normalisasi nipd/nik: string kosong "" → null (hindari bentrok unique constraint pada "")
+        const nipdVal = nipd && String(nipd).trim() ? String(nipd).trim() : null;
+        const nikVal = nik && String(nik).trim() ? String(nik).trim() : null;
+
         if (!/^\d+$/.test(nisn)) {
             return res.status(400).json({ success: false, message: "NISN harus berupa angka" });
         }
-        if (!/^\d+$/.test(nipd)) {
+        if (nipdVal && !/^\d+$/.test(nipdVal)) {
             return res.status(400).json({ success: false, message: "NIPD harus berupa angka" });
         }
-        if (!/^\d+$/.test(nik)) {
+        if (nikVal && !/^\d+$/.test(nikVal)) {
             return res.status(400).json({ success: false, message: "NIK harus berupa angka" });
         }
-
-        // Validasi jenis_kelamin
-        if (!["L", "P"].includes(jenis_kelamin)) {
+        if (jenis_kelamin && !["L", "P"].includes(jenis_kelamin)) {
             return res.status(400).json({ success: false, message: "jenis_kelamin harus L atau P" });
         }
 
@@ -204,16 +205,20 @@ const createSiswa = async (req, res) => {
             return res.status(409).json({ success: false, message: "NISN sudah terdaftar" });
         }
 
-        // Cek duplikasi nipd
-        const existingNipd = await prisma.siswa.findFirst({ where: { nipd, deleted_at: null } });
-        if (existingNipd) {
-            return res.status(409).json({ success: false, message: "NIPD sudah terdaftar" });
+        // Cek duplikasi nipd (hanya jika diisi)
+        if (nipdVal) {
+            const existingNipd = await prisma.siswa.findFirst({ where: { nipd: nipdVal, deleted_at: null } });
+            if (existingNipd) {
+                return res.status(409).json({ success: false, message: "NIPD sudah terdaftar" });
+            }
         }
 
-        // Cek duplikasi nik
-        const existingNik = await prisma.siswa.findFirst({ where: { nik, deleted_at: null } });
-        if (existingNik) {
-            return res.status(409).json({ success: false, message: "NIK sudah terdaftar" });
+        // Cek duplikasi nik (hanya jika diisi)
+        if (nikVal) {
+            const existingNik = await prisma.siswa.findFirst({ where: { nik: nikVal, deleted_at: null } });
+            if (existingNik) {
+                return res.status(409).json({ success: false, message: "NIK sudah terdaftar" });
+            }
         }
 
         // Cari kelas berdasarkan nama + jurusan
@@ -232,13 +237,18 @@ const createSiswa = async (req, res) => {
             });
         }
 
-        // Validasi format tanggal lahir
-        const tglLahirDate = new Date(tgl_lahir);
-        if (isNaN(tglLahirDate.getTime())) {
-            return res.status(400).json({
-                success: false,
-                message: "Format tanggal lahir tidak valid (gunakan YYYY-MM-DD)"
-            });
+        let tglLahirDate = null;
+        if (tgl_lahir) {
+            const match = typeof tgl_lahir === "string" && tgl_lahir.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+            tglLahirDate = match
+                ? new Date(`${match[3]}-${match[2]}-${match[1]}T00:00:00`)
+                : tgl_lahir instanceof Date ? tgl_lahir : new Date(tgl_lahir);
+            if (isNaN(tglLahirDate.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Format tanggal lahir tidak valid (gunakan YYYY-MM-DD)"
+                });
+            }
         }
 
         // Handle orang tua
@@ -281,8 +291,8 @@ const createSiswa = async (req, res) => {
         const newSiswa = await prisma.siswa.create({
             data: {
                 nisn,
-                nipd,
-                nik,
+                nipd: nipdVal,
+                nik: nikVal,
                 nama,
                 tempat_lahir,
                 tgl_lahir: tglLahirDate,
@@ -294,7 +304,7 @@ const createSiswa = async (req, res) => {
             },
             include: {
                 kelas: { select: { kelas: true, jurusan: true } },
-                orang_tua: { select: { nama_orangtua: true,  } }
+                orang_tua: { select: { nama_orangtua: true } }
             }
         });
 
@@ -303,11 +313,11 @@ const createSiswa = async (req, res) => {
         if (inputRfidCreate && String(inputRfidCreate).trim()) {
             const uidStr = String(inputRfidCreate).trim();
             try {
-                const existingRfid = await prisma.RFID.findFirst({
+                const existingRfid = await prisma.rFID.findFirst({
                     where: { uid_rfid: uidStr }
                 });
                 if (existingRfid) {
-                    await prisma.RFID.update({
+                    await prisma.rFID.update({
                         where: { id: existingRfid.id },
                         data: {
                             siswa_id: newSiswa.id,
@@ -316,7 +326,7 @@ const createSiswa = async (req, res) => {
                         }
                     });
                 } else {
-                    await prisma.RFID.create({
+                    await prisma.rFID.create({
                         data: {
                             uid_rfid: uidStr,
                             siswa_id: newSiswa.id,
@@ -364,22 +374,20 @@ const updateSiswa = async (req, res) => {
         } = req.body;
 
         // Validasi input wajib
-        if (!nisn || !nipd || !nik || !nama || !tempat_lahir || !tgl_lahir || !jenis_kelamin || !agama || !jurusan || !kelas_id) {
+        if (!nisn || !nama || !jurusan || !kelas_id) {
             return res.status(400).json({
                 success: false,
-                message: "nisn, nipd, nik, nama, tempat_lahir, tgl_lahir, jenis_kelamin, agama, jurusan, dan kelas wajib diisi"
+                message: "Field wajib: nisn, nama, jurusan, kelas_id"
             });
         }
 
-        // Validasi jenis_kelamin
-        if (!["L", "P"].includes(jenis_kelamin)) {
+        if (jenis_kelamin && !["L", "P"].includes(jenis_kelamin)) {
             return res.status(400).json({
                 success: false,
                 message: "jenis_kelamin harus L atau P"
             });
         }
 
-        // Validasi nisn harus angka
         if (!/^\d+$/.test(nisn)) {
             return res.status(400).json({
                 success: false,
@@ -387,16 +395,17 @@ const updateSiswa = async (req, res) => {
             });
         }
 
-        // Validasi nipd harus angka
-        if (!/^\d+$/.test(nipd)) {
+        // Normalisasi nipd/nik: string kosong "" → null
+        const nipdVal = nipd && String(nipd).trim() ? String(nipd).trim() : null;
+        const nikVal = nik && String(nik).trim() ? String(nik).trim() : null;
+
+        if (nipdVal && !/^\d+$/.test(nipdVal)) {
             return res.status(400).json({
                 success: false,
                 message: "NIPD harus berupa angka"
             });
         }
-
-        // Validasi nik harus angka
-        if (!/^\d+$/.test(nik)) {
+        if (nikVal && !/^\d+$/.test(nikVal)) {
             return res.status(400).json({
                 success: false,
                 message: "NIK harus berupa angka"
@@ -437,7 +446,7 @@ const updateSiswa = async (req, res) => {
 
         // Validasi orangtua exists (jika diisi)
         if (orangtua_id) {
-            const orangTuaExists = await prisma.OrangTua.findFirst({
+            const orangTuaExists = await prisma.orangTua.findFirst({
                 where: { id: parseInt(orangtua_id), deleted_at: null }
             });
 
@@ -461,37 +470,51 @@ const updateSiswa = async (req, res) => {
             });
         }
 
-        // Cek duplikasi nipd (kecuali data sendiri)
-        const duplicateNipd = await prisma.siswa.findFirst({
-            where: { nipd, deleted_at: null, NOT: { id } }
-        });
-
-        if (duplicateNipd) {
-            return res.status(409).json({
-                success: false,
-                message: "NIPD sudah digunakan oleh siswa lain"
+        // Cek duplikasi nipd (hanya jika diisi, kecuali data sendiri)
+        if (nipdVal) {
+            const duplicateNipd = await prisma.siswa.findFirst({
+                where: { nipd: nipdVal, deleted_at: null, NOT: { id } }
             });
+
+            if (duplicateNipd) {
+                return res.status(409).json({
+                    success: false,
+                    message: "NIPD sudah digunakan oleh siswa lain"
+                });
+            }
         }
 
-        // Cek duplikasi nik (kecuali data sendiri)
-        const duplicateNik = await prisma.siswa.findFirst({
-            where: { nik, deleted_at: null, NOT: { id } }
-        });
-
-        if (duplicateNik) {
-            return res.status(409).json({
-                success: false,
-                message: "NIK sudah digunakan oleh siswa lain"
+        // Cek duplikasi nik (hanya jika diisi, kecuali data sendiri)
+        if (nikVal) {
+            const duplicateNik = await prisma.siswa.findFirst({
+                where: { nik: nikVal, deleted_at: null, NOT: { id } }
             });
+
+            if (duplicateNik) {
+                return res.status(409).json({
+                    success: false,
+                    message: "NIK sudah digunakan oleh siswa lain"
+                });
+            }
         }
 
-        // Konversi tanggal lahir
-        const tglLahirDate = new Date(tgl_lahir);
-        if (isNaN(tglLahirDate.getTime())) {
-            return res.status(400).json({
-                success: false,
-                message: "Format tanggal lahir tidak valid (gunakan YYYY-MM-DD)"
-            });
+        // Konversi tanggal lahir (opsional — support YYYY-MM-DD dan DD/MM/YYYY)
+        let tglLahirDate = existingSiswa.tgl_lahir;
+        if (tgl_lahir !== undefined) {
+            if (!tgl_lahir) {
+                tglLahirDate = null;
+            } else {
+                const match = typeof tgl_lahir === "string" && tgl_lahir.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+                tglLahirDate = match
+                    ? new Date(`${match[3]}-${match[2]}-${match[1]}T00:00:00`)
+                    : tgl_lahir instanceof Date ? tgl_lahir : new Date(tgl_lahir);
+                if (isNaN(tglLahirDate.getTime())) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Format tanggal lahir tidak valid (gunakan YYYY-MM-DD)"
+                    });
+                }
+            }
         }
 
         const updatedSiswa = await prisma.$transaction(async (tx) => {
@@ -499,8 +522,8 @@ const updateSiswa = async (req, res) => {
                 where: { id },
                 data: {
                     nisn,
-                    nipd,
-                    nik,
+                    nipd: nipdVal,
+                    nik: nikVal,
                     nama,
                     tempat_lahir,
                     tgl_lahir: tglLahirDate,
@@ -512,7 +535,7 @@ const updateSiswa = async (req, res) => {
                 },
                 include: {
                     kelas: { select: { kelas: true, jurusan: true } },
-                    orang_tua: { select: { nama_orangtua: true,  } }
+                    orang_tua: { select: { nama_orangtua: true } }
                 }
             });
         });
@@ -522,7 +545,7 @@ const updateSiswa = async (req, res) => {
         if (inputRfidUpdate !== undefined) {
             const uidStr = String(inputRfidUpdate || "").trim();
             try {
-                const activeRfid = await prisma.RFID.findFirst({
+                const activeRfid = await prisma.rFID.findFirst({
                     where: {
                         siswa_id: id,
                         is_active: true,
@@ -532,7 +555,7 @@ const updateSiswa = async (req, res) => {
 
                 if (!uidStr) {
                     if (activeRfid) {
-                        await prisma.RFID.update({
+                        await prisma.rFID.update({
                             where: { id: activeRfid.id },
                             data: { is_active: false, deleted_at: new Date() }
                         });
@@ -540,17 +563,17 @@ const updateSiswa = async (req, res) => {
                 } else {
                     if (activeRfid) {
                         if (activeRfid.uid_rfid !== uidStr) {
-                            await prisma.RFID.update({
+                            await prisma.rFID.update({
                                 where: { id: activeRfid.id },
                                 data: { uid_rfid: uidStr, is_active: true }
                             });
                         }
                     } else {
-                        const existingUid = await prisma.RFID.findFirst({
+                        const existingUid = await prisma.rFID.findFirst({
                             where: { uid_rfid: uidStr }
                         });
                         if (existingUid) {
-                            await prisma.RFID.update({
+                            await prisma.rFID.update({
                                 where: { id: existingUid.id },
                                 data: {
                                     siswa_id: id,
@@ -559,7 +582,7 @@ const updateSiswa = async (req, res) => {
                                 }
                             });
                         } else {
-                            await prisma.RFID.create({
+                            await prisma.rFID.create({
                                 data: {
                                     uid_rfid: uidStr,
                                     siswa_id: id,
@@ -680,8 +703,7 @@ const importSiswa = async (req, res) => {
         }
 
         const requiredColumns = [
-            "NISN", "NIPD", "NIK", "nama", "alamat", "gender",
-            "tanggal_lahir", "nomor_telepon", "nama_kelas", "jurusan"
+            "NISN", "nama", "nama_kelas", "jurusan"
         ];
         const missingColumns = requiredColumns.filter(col => !Object.keys(rows[0]).includes(col));
         if (missingColumns.length > 0) {
@@ -691,26 +713,30 @@ const importSiswa = async (req, res) => {
             });
         }
 
-        const allNISN = [...new Set(rows.map(r => String(r.NISN).trim()).filter(Boolean))];
-        const allNIPD = [...new Set(rows.map(r => String(r.NIPD).trim()).filter(Boolean))];
-        const allNIK = [...new Set(rows.map(r => String(r.NIK).trim()).filter(Boolean))];
-        const allNIKOrtu = [...new Set(rows.map(r => String(r.NIK_orangtua || "").trim()).filter(Boolean))];
+        const allNISN = [...new Set(rows.map(r => r.NISN ? String(r.NISN).trim() : "").filter(Boolean))];
+        const allNIPD = [...new Set(rows.map(r => r.NIPD ? String(r.NIPD).trim() : "").filter(Boolean))];
+        const allNIK = [...new Set(rows.map(r => r.NIK ? String(r.NIK).trim() : "").filter(Boolean))];
+        const allNIKOrtu = [...new Set(rows.map(r => r.NIK_orangtua ? String(r.NIK_orangtua).trim() : "").filter(Boolean))];
 
         const [existingSiswaNISN, existingSiswaNIPD, existingSiswaNIK, existingOrtuList, kelasList] = await Promise.all([
             prisma.siswa.findMany({
-                where: { NISN: { in: allNISN }, deleted_at: null },
-                select: { NISN: true }
+                where: { nisn: { in: allNISN }, deleted_at: null },
+                select: { nisn: true }
             }),
-            prisma.siswa.findMany({
-                where: { NIPD: { in: allNIPD }, deleted_at: null },
-                select: { NIPD: true }
-            }),
-            prisma.siswa.findMany({
-                where: { NIK: { in: allNIK }, deleted_at: null },
-                select: { NIK: true }
-            }),
+            allNIPD.length > 0
+                ? prisma.siswa.findMany({
+                    where: { nipd: { in: allNIPD }, deleted_at: null },
+                    select: { nipd: true }
+                })
+                : Promise.resolve([]),
+            allNIK.length > 0
+                ? prisma.siswa.findMany({
+                    where: { nik: { in: allNIK }, deleted_at: null },
+                    select: { nik: true }
+                })
+                : Promise.resolve([]),
             allNIKOrtu.length > 0
-                ? prisma.OrangTua.findMany({
+                ? prisma.orangTua.findMany({
                     where: { NIK: { in: allNIKOrtu }, deleted_at: null },
                     select: { id: true, NIK: true }
                 })
@@ -721,9 +747,9 @@ const importSiswa = async (req, res) => {
             })
         ]);
 
-        const existingNISNSet = new Set(existingSiswaNISN.map(s => s.NISN));
-        const existingNIPDSet = new Set(existingSiswaNIPD.map(s => s.NIPD));
-        const existingNIKSet = new Set(existingSiswaNIK.map(s => s.NIK));
+        const existingNISNSet = new Set(existingSiswaNISN.map(s => s.nisn));
+        const existingNIPDSet = new Set(existingSiswaNIPD.map(s => s.nipd));
+        const existingNIKSet = new Set(existingSiswaNIK.map(s => s.nik));
         const ortuMap = new Map(existingOrtuList.map(o => [o.NIK, o.id]));
         const kelasMap = new Map(kelasList.map(k => [`${k.kelas}__${k.jurusan}`, k.id]));
 
@@ -739,16 +765,16 @@ const importSiswa = async (req, res) => {
             const rowNum = i + 2;
             const rowErrors = [];
 
-            const NISN = String(row.NISN).trim();
-            const NIPD = String(row.NIPD).trim();
-            const NIK = String(row.NIK).trim();
-            const nama = String(row.nama).trim();
-            const alamat = String(row.alamat).trim();
-            const gender = String(row.gender).trim();
-            const tanggal_lahir = row.tanggal_lahir;
-            const nomor_telepon = String(row.nomor_telepon).trim();
-            const nama_kelas = String(row.nama_kelas).trim();
-            const jurusan = String(row.jurusan).trim();
+            const NISN = row.NISN ? String(row.NISN).trim() : "";
+            const NIPD = row.NIPD ? String(row.NIPD).trim() : "";
+            const NIK = row.NIK ? String(row.NIK).trim() : "";
+            const nama = row.nama ? String(row.nama).trim() : "";
+            const tempat_lahir = row.tempat_lahir ? String(row.tempat_lahir).trim() : "";
+            const gender = row.gender ? String(row.gender).trim() : "";
+            const tanggal_lahir = row.tanggal_lahir || null;
+            const agama = row.agama ? String(row.agama).trim() : "";
+            const nama_kelas = row.nama_kelas ? String(row.nama_kelas).trim() : "";
+            const jurusan = row.jurusan ? String(row.jurusan).trim() : "";
 
             const NIK_ortu = row.NIK_orangtua ? String(row.NIK_orangtua).trim() : "";
             const nama_ortu = row.nama_orangtua ? String(row.nama_orangtua).trim() : "";
@@ -757,13 +783,7 @@ const importSiswa = async (req, res) => {
             const alamat_ortu = row.alamat_orangtua ? String(row.alamat_orangtua).trim() : "";
 
             if (!NISN) rowErrors.push("NISN kosong");
-            if (!NIPD) rowErrors.push("NIPD kosong");
-            if (!NIK) rowErrors.push("NIK kosong");
             if (!nama) rowErrors.push("nama kosong");
-            if (!alamat) rowErrors.push("alamat kosong");
-            if (!gender) rowErrors.push("gender kosong");
-            if (!tanggal_lahir) rowErrors.push("tanggal_lahir kosong");
-            if (!nomor_telepon) rowErrors.push("nomor_telepon kosong");
             if (!nama_kelas) rowErrors.push("nama_kelas kosong");
             if (!jurusan) rowErrors.push("jurusan kosong");
 
@@ -794,9 +814,12 @@ const importSiswa = async (req, res) => {
 
             let tanggalLahirDate = null;
             if (tanggal_lahir) {
-                tanggalLahirDate = tanggal_lahir instanceof Date ? tanggal_lahir : new Date(tanggal_lahir);
+                const match = typeof tanggal_lahir === "string" && tanggal_lahir.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+                tanggalLahirDate = match
+                    ? new Date(`${match[3]}-${match[2]}-${match[1]}T00:00:00`)
+                    : tanggal_lahir instanceof Date ? tanggal_lahir : new Date(tanggal_lahir);
                 if (isNaN(tanggalLahirDate.getTime())) {
-                    rowErrors.push("Format tanggal_lahir tidak valid (gunakan YYYY-MM-DD)");
+                    rowErrors.push("Format tanggal_lahir tidak valid (gunakan YYYY-MM-DD atau DD/MM/YYYY)");
                     tanggalLahirDate = null;
                 }
             }
@@ -832,10 +855,12 @@ const importSiswa = async (req, res) => {
             }
 
             toInsert.push({
-                NISN, NIPD, NIK, nama, alamat, gender,
+                NISN, NIPD: NIPD || null, NIK: NIK || null, nama,
+                tempat_lahir: tempat_lahir || null, gender: gender || null,
+                agama: agama || null,
                 tanggal_lahir: tanggalLahirDate,
-                nomor_telepon,
                 kelas_id: kelasId,
+                jurusan,
                 orangtua_id: orangtuaId,
                 orangtuaBaru
             });
@@ -855,32 +880,19 @@ const importSiswa = async (req, res) => {
             const nikUnik = new Map(ortuBaruList.map(s => [s.orangtuaBaru.NIK, s.orangtuaBaru]));
 
             for (const [nik, dataOrtu] of nikUnik) {
-                const newOrtu = await tx.OrangTua.create({ data: dataOrtu });
+                const newOrtu = await tx.orangTua.create({ data: dataOrtu });
                 ortuMap.set(nik, newOrtu.id);
             }
 
-            const             siswaNoOrtu = toInsert
-                .filter(s => !s.orangtuaBaru)
-                .map(s => ({
-                    nisn: s.NISN, nipd: s.NIPD, nik: s.NIK, nama: s.nama,
-                    alamat: s.alamat, jenis_kelamin: s.gender,
-                    tgl_lahir: s.tanggal_lahir,
-                    kelas_id: s.kelas_id,
-                    orangtua_id: s.orangtua_id
-                }));
-
-            if (siswaNoOrtu.length > 0) {
-                await tx.siswa.createMany({ data: siswaNoOrtu });
-            }
-
-            for (const s of toInsert.filter(s => s.orangtuaBaru)) {
+            for (const s of toInsert) {
                 await tx.siswa.create({
                     data: {
                         nisn: s.NISN, nipd: s.NIPD, nik: s.NIK, nama: s.nama,
-                        alamat: s.alamat, jenis_kelamin: s.gender,
-                        tgl_lahir: s.tanggal_lahir,
+                        tempat_lahir: s.tempat_lahir, jenis_kelamin: s.gender,
+                        tgl_lahir: s.tanggal_lahir, agama: s.agama,
+                        jurusan: s.jurusan,
                         kelas_id: s.kelas_id,
-                        orangtua_id: ortuMap.get(s.orangtuaBaru.NIK)
+                        orangtua_id: s.orangtua_id || (s.orangtuaBaru ? ortuMap.get(s.orangtuaBaru.NIK) : null)
                     }
                 });
             }

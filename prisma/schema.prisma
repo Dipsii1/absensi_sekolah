@@ -117,11 +117,11 @@ model Siswa {
   nama          String   @db.VarChar(150)
   nisn          String   @unique @db.VarChar(20)
   nipd          String?  @unique @db.VarChar(20)
-  nik           String   @unique @db.VarChar(20)
-  tempat_lahir  String   @db.VarChar(100)
-  tgl_lahir     DateTime @db.Date
-  jenis_kelamin String   @db.VarChar(1)
-  agama         String   @db.VarChar(50)
+  nik           String?   @unique @db.VarChar(20)
+  tempat_lahir  String?   @db.VarChar(100)
+  tgl_lahir     DateTime? @db.Date
+  jenis_kelamin String?   @db.VarChar(1)
+  agama         String?   @db.VarChar(50)
   jurusan       String   @db.VarChar(100) 
 
   status_siswa StatusSiswa @default(Active)
