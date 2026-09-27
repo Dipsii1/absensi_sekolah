@@ -564,17 +564,6 @@ const login = async (req, res) => {
             }
 
             ysboUser = ysboData.data;
-            console.log("Debug login: ysboUser keys:", Object.keys(ysboUser).join(", "));
-            console.log("Debug login: ysboUser values:", JSON.stringify(
-                Object.fromEntries(
-                    Object.entries(ysboUser).map(([k, v]) => {
-                        if (["token", "password", "access_token"].includes(k.toLowerCase())) return [k, "***"];
-                        return [k, typeof v === "string" ? v : typeof v];
-                    })
-                ),
-                null,
-                2
-            ));
         } catch (err) {
             console.error("YSBO API Error:", err.message);
             return res.status(502).json({
