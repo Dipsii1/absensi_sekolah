@@ -614,7 +614,7 @@ const updateSiswa = async (req, res) => {
 };
 
 
-// delete siswa (soft delete)
+// delete siswa (soft delete) + RFID aktif ikut dihapus
 const deleteSiswa = async (req, res) => {
     try {
         const { id } = req.params;
@@ -634,35 +634,31 @@ const deleteSiswa = async (req, res) => {
             });
         }
 
-        // Cek apakah masih punya RFID aktif
-        // const hasRFID = await prisma.rFID.count({
-        //     where: {
-        //         siswa_id: id,
-        //         deleted_at: null,
-        //         is_active: true
-        //     }
-        // });
+        const now = new Date();
 
-        // if (hasRFID > 0) {
-        //     return res.status(400).json({
-        //         success: false,
-        //         message: "Siswa tidak dapat dihapus karena masih memiliki RFID aktif"
-        //     });
-        // }
-
-        // Soft delete
-        await prisma.siswa.update({
-            where: {
-                id: id
-            },
-            data: {
-                deleted_at: new Date()
-            }
-        });
+        // Soft delete siswa + RFID miliknya dalam satu transaksi
+        const [rfidResult] = await prisma.$transaction([
+            prisma.rFID.updateMany({
+                where: {
+                    siswa_id: id,
+                    deleted_at: null
+                },
+                data: {
+                    is_active: false,
+                    deleted_at: now
+                }
+            }),
+            prisma.siswa.update({
+                where: { id: id },
+                data: { deleted_at: now }
+            })
+        ]);
 
         return res.status(200).json({
             success: true,
-            message: "Berhasil menghapus data siswa"
+            message: rfidResult.count > 0
+                ? `Berhasil menghapus data siswa dan ${rfidResult.count} RFID terkait`
+                : "Berhasil menghapus data siswa"
         });
     } catch (error) {
         console.error("Error deleting siswa:", error);
