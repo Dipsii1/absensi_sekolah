@@ -1,84 +1,10 @@
 const prisma = require("../config/prisma");
-
-
-// HELPER: Hitung tahun ajaran aktif berdasarkan tanggal hari ini
-const generateTahunAjaran = (date = new Date()) => {
-    const month = date.getMonth() + 1; // 1–12
-    const year = date.getFullYear();
-
-    const startYear = month >= 7 ? year : year - 1;
-    const endYear = startYear + 1;
-
-    return {
-        tahun_ajaran: `${startYear}/${endYear}`,
-        tanggal_mulai: new Date(startYear, 6, 1),   // 1 Juli
-        tanggal_selesai: new Date(endYear, 5, 30),   // 30 Juni
-    };
-};
-
-// Buat tahun ajaran baru jika belum ada untuk periode saat ini
-const autoCreateTahunAjaran = async () => {
-    const { tahun_ajaran, tanggal_mulai, tanggal_selesai } = generateTahunAjaran();
-
-    // Sudah ada dan aktif → skip
-    const existing = await prisma.Tahun.findFirst({
-        where: { tahun_ajaran, deleted_at: null },
-    });
-    if (existing) return existing;
-
-    // Pernah dibuat tapi soft-deleted → restore
-    const deletedTahun = await prisma.Tahun.findFirst({
-        where: { tahun_ajaran },
-    });
-
-    if (deletedTahun?.deleted_at) {
-        const restored = await prisma.Tahun.update({
-            where: { id: deletedTahun.id },
-            data: {
-                deleted_at: null,
-                is_active: true,
-                tanggal_mulai,
-                tanggal_selesai,
-                updated_at: new Date(),
-            },
-        });
-        console.log(`[AUTO-RESTORE] Tahun ajaran dipulihkan: ${tahun_ajaran}`);
-        return restored;
-    }
-
-    // Nonaktifkan semua tahun ajaran sebelumnya
-    await prisma.Tahun.updateMany({
-        where: { is_active: true, deleted_at: null },
-        data: { is_active: false, updated_at: new Date() },
-    });
-
-    // Buat tahun ajaran baru
-    const newTahun = await prisma.Tahun.create({
-        data: {
-            tahun_ajaran,
-            tanggal_mulai,
-            tanggal_selesai,
-            is_active: true,
-        },
-    });
-
-    console.log(
-        `[AUTO-CREATE] Tahun ajaran baru: ${tahun_ajaran} | ` +
-        `Mulai: ${tanggal_mulai.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })} | ` +
-        `Selesai: ${tanggal_selesai.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}`
-    );
-
-    return newTahun;
-};
-
-
+const { autoCreateTahunAjaran } = require("../helper/autoCreateTahunAjaran");
 
 // GET ALL
 const getAllTahunAjaran = async (req, res) => {
     try {
-        await autoCreateTahunAjaran();
-
-        const tahun = await prisma.Tahun.findMany({
+        const tahun = await prisma.tahun.findMany({
             where: { deleted_at: null },
             orderBy: { created_at: "desc" },
         });
@@ -105,7 +31,7 @@ const getTahunAjaranById = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const tahun = await prisma.Tahun.findFirst({
+        const tahun = await prisma.tahun.findFirst({
             where: { id: parseInt(id), deleted_at: null },
         });
 
@@ -182,7 +108,7 @@ const createTahunAjaran = async (req, res) => {
         }
 
         // Cek duplikat aktif
-        const existingTahun = await prisma.Tahun.findFirst({
+        const existingTahun = await prisma.tahun.findFirst({
             where: { tahun_ajaran, deleted_at: null },
         });
 
@@ -194,12 +120,12 @@ const createTahunAjaran = async (req, res) => {
         }
 
         // Restore jika pernah soft-deleted
-        const deletedTahun = await prisma.Tahun.findFirst({
+        const deletedTahun = await prisma.tahun.findFirst({
             where: { tahun_ajaran },
         });
 
         if (deletedTahun?.deleted_at) {
-            const restored = await prisma.Tahun.update({
+            const restored = await prisma.tahun.update({
                 where: { id: deletedTahun.id },
                 data: {
                     deleted_at: null,
@@ -216,8 +142,14 @@ const createTahunAjaran = async (req, res) => {
             });
         }
 
+        // Nonaktifkan tahun ajaran lain yang masih aktif
+        await prisma.tahun.updateMany({
+            where: { is_active: true, deleted_at: null },
+            data: { is_active: false, updated_at: new Date() },
+        });
+
         // Buat baru
-        const newTahun = await prisma.Tahun.create({
+        const newTahun = await prisma.tahun.create({
             data: {
                 tahun_ajaran,
                 tanggal_mulai: finalTanggalMulai,
@@ -266,7 +198,7 @@ const updateTahunAjaran = async (req, res) => {
         }
 
         // Cek data yang akan diupdate
-        const existingTahun = await prisma.Tahun.findFirst({
+        const existingTahun = await prisma.tahun.findFirst({
             where: { id: parseInt(id), deleted_at: null },
         });
 
@@ -278,7 +210,7 @@ const updateTahunAjaran = async (req, res) => {
         }
 
         // Cek duplikat (selain dirinya sendiri)
-        const duplicate = await prisma.Tahun.findFirst({
+        const duplicate = await prisma.tahun.findFirst({
             where: {
                 tahun_ajaran,
                 deleted_at: null,
@@ -295,7 +227,7 @@ const updateTahunAjaran = async (req, res) => {
 
         // Jika is_active di-set true, nonaktifkan yang lain
         if (is_active === true) {
-            await prisma.Tahun.updateMany({
+            await prisma.tahun.updateMany({
                 where: {
                     is_active: true,
                     deleted_at: null,
@@ -305,7 +237,7 @@ const updateTahunAjaran = async (req, res) => {
             });
         }
 
-        const updatedTahun = await prisma.Tahun.update({
+        const updatedTahun = await prisma.tahun.update({
             where: { id: parseInt(id) },
             data: {
                 tahun_ajaran,
@@ -339,7 +271,7 @@ const deleteTahunAjaran = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const existing = await prisma.Tahun.findFirst({
+        const existing = await prisma.tahun.findFirst({
             where: { id: parseInt(id), deleted_at: null },
         });
 
@@ -371,7 +303,7 @@ const deleteTahunAjaran = async (req, res) => {
             });
         }
 
-        await prisma.Tahun.update({
+        await prisma.tahun.update({
             where: { id: parseInt(id) },
             data: { deleted_at: new Date() },
         });

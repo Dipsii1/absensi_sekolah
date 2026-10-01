@@ -5,7 +5,7 @@ module.exports = async (prisma, siswaList) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const hariMap = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
+    const hariMap = ["MINGGU", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
     const hariIni = hariMap[today.getDay()];
 
     if (hariIni === "MINGGU") {
@@ -23,7 +23,7 @@ module.exports = async (prisma, siswaList) => {
         tapInDate.setHours(6, 45 + i * 5, 0, 0);
 
         const statusTapIn =
-            tapInDate.getHours() < 7 ? "TEPAT_WAKTU" : "TELAMBAT";
+            tapInDate.getHours() < 7 ? "Tepat_Waktu" : "Terlambat";
 
         const tapOutDate = new Date(today);
         tapOutDate.setHours(14, i * 5, 0, 0);
@@ -51,7 +51,6 @@ module.exports = async (prisma, siswaList) => {
                     siswa_id: siswa.id,
                     tanggal: today,
                     tap_in: tapInDate,
-                    tap_out: tapOutDate,
                     rfid_id: rfid?.id ?? null,
                     status_tapin: statusTapIn,
                 },
@@ -70,7 +69,7 @@ module.exports = async (prisma, siswaList) => {
             orderBy: { jam_mulai: "asc" },
         });
 
-        const statusMap = ["HADIR", "HADIR", "HADIR", "HADIR", "HADIR", "HADIR", "IZIN", "ALPHA"];
+        const statusMap = ["Hadir", "Hadir", "Hadir", "Hadir", "Hadir", "Hadir", "Izin", "Alpha"];
         const statusSiswa = statusMap[i];
 
         for (const jadwal of jadwalHariIni) {
@@ -91,9 +90,9 @@ module.exports = async (prisma, siswaList) => {
                         status: statusSiswa,
                         jam_absen: tapInDate,
                         keterangan:
-                            statusSiswa === "IZIN"
+                            statusSiswa === "Izin"
                                 ? "Izin keperluan keluarga"
-                                : statusSiswa === "SAKIT"
+                                : statusSiswa === "Sakit"
                                 ? "Surat keterangan dokter"
                                 : null,
                     },
