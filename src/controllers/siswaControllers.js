@@ -635,20 +635,20 @@ const deleteSiswa = async (req, res) => {
         }
 
         // Cek apakah masih punya RFID aktif
-        const hasRFID = await prisma.rFID.count({
-            where: {
-                siswa_id: id,
-                deleted_at: null,
-                is_active: true
-            }
-        });
+        // const hasRFID = await prisma.rFID.count({
+        //     where: {
+        //         siswa_id: id,
+        //         deleted_at: null,
+        //         is_active: true
+        //     }
+        // });
 
-        if (hasRFID > 0) {
-            return res.status(400).json({
-                success: false,
-                message: "Siswa tidak dapat dihapus karena masih memiliki RFID aktif"
-            });
-        }
+        // if (hasRFID > 0) {
+        //     return res.status(400).json({
+        //         success: false,
+        //         message: "Siswa tidak dapat dihapus karena masih memiliki RFID aktif"
+        //     });
+        // }
 
         // Soft delete
         await prisma.siswa.update({
