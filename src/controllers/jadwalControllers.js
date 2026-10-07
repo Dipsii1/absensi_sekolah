@@ -494,7 +494,7 @@ const importJadwal = async (req, res) => {
         }
 
         const VALID_HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-        const REQUIRED_COLUMNS = ["HARI", "KELAS", "JURUSAN", "NAMA_MAPEL", "NAMA_GURU", "JAM_MULAI", "JAM_SELESAI"];
+        const REQUIRED_COLUMNS = ["HARI", "KELAS", "JURUSAN", "KODE_MAPEL", "ID_GURU", "JAM_MULAI", "JAM_SELESAI"];
 
         const missingCols = REQUIRED_COLUMNS.filter(col => !headers.includes(col));
         if (missingCols.length > 0) {
@@ -520,12 +520,13 @@ const importJadwal = async (req, res) => {
 
             const kelasStr = String(row["KELAS"] || "").trim();
             const jurusan = String(row["JURUSAN"] || "").trim();
-            const namaMapel = String(row["NAMA_MAPEL"] || "").trim();
-            const namaGuru = String(row["NAMA_GURU"] || "").trim();
+            const kodeMapel = String(row["KODE_MAPEL"] || "").trim();
+            const idGuruRaw = String(row["ID_GURU"] || "").trim();
+            const idGuru = idGuruRaw !== "" && !isNaN(parseInt(idGuruRaw)) ? parseInt(idGuruRaw) : null;
             const jamMulai = normalizeJamValue(row["JAM_MULAI"]);
             const jamSelesai = normalizeJamValue(row["JAM_SELESAI"]);
 
-            if (!hari && !kelasStr && !namaMapel && !namaGuru) continue;
+            if (!hari && !kelasStr && !kodeMapel && !idGuruRaw) continue;
 
             if (id !== null) {
                 const existing = await prisma.jadwal.findUnique({ where: { id } });
@@ -548,14 +549,14 @@ const importJadwal = async (req, res) => {
                 continue;
             }
 
-            if (!namaMapel) {
-                errors.push({ row: rowNum, pesan: "NAMA_MAPEL wajib diisi" });
+            if (!kodeMapel) {
+                errors.push({ row: rowNum, pesan: "KODE_MAPEL wajib diisi" });
                 skipped++;
                 continue;
             }
 
-            if (!namaGuru) {
-                errors.push({ row: rowNum, pesan: "NAMA_GURU wajib diisi" });
+            if (idGuru === null) {
+                errors.push({ row: rowNum, pesan: "ID_GURU wajib diisi dan harus berupa angka" });
                 skipped++;
                 continue;
             }
@@ -585,19 +586,19 @@ const importJadwal = async (req, res) => {
             }
 
             const mapelRecord = await prisma.mataPelajaran.findFirst({
-                where: { nama_mapel: { equals: namaMapel, mode: "insensitive" }, deleted_at: null }
+                where: { kode_mapel: { equals: kodeMapel, mode: "insensitive" }, deleted_at: null }
             });
             if (!mapelRecord) {
-                errors.push({ row: rowNum, pesan: `Mata pelajaran "${namaMapel}" tidak ditemukan di sistem` });
+                errors.push({ row: rowNum, pesan: `Mata pelajaran dengan kode "${kodeMapel}" tidak ditemukan di sistem` });
                 skipped++;
                 continue;
             }
 
             const guruRecord = await prisma.guru.findFirst({
-                where: { nama: { equals: namaGuru, mode: "insensitive" }, deleted_at: null }
+                where: { id: idGuru, deleted_at: null }
             });
             if (!guruRecord) {
-                errors.push({ row: rowNum, pesan: `Guru "${namaGuru}" tidak ditemukan di sistem` });
+                errors.push({ row: rowNum, pesan: `Guru dengan ID "${idGuru}" tidak ditemukan di sistem` });
                 skipped++;
                 continue;
             }
@@ -632,7 +633,7 @@ const importJadwal = async (req, res) => {
                 }
             });
             if (conflictGuru) {
-                errors.push({ row: rowNum, pesan: `Guru "${namaGuru}" sudah memiliki jadwal pada hari ${hari} jam ${jamMulai}–${jamSelesai}` });
+                errors.push({ row: rowNum, pesan: `Guru ID ${idGuru} sudah memiliki jadwal pada hari ${hari} jam ${jamMulai}–${jamSelesai}` });
                 skipped++;
                 continue;
             }
