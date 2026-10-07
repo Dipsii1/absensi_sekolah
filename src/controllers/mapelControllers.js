@@ -1,16 +1,43 @@
 const prisma = require("../config/prisma");
 
-// GET ALL mapel 
+const parseId = (value) => {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+};
 
+const cleanStr = (value) => {
+    if (value === undefined || value === null) return undefined;
+    return String(value).trim();
+};
+
+// Cari bentrok nama/kode (termasuk yang soft delete, karena unique di level DB)
+const findConflict = async ({ nama_mapel, kode_mapel, excludeId }) => {
+    const or = [];
+    if (nama_mapel) or.push({ nama_mapel });
+    if (kode_mapel) or.push({ kode_mapel });
+    if (or.length === 0) return null;
+
+    return prisma.mataPelajaran.findFirst({
+        where: {
+            OR: or,
+            ...(excludeId && { NOT: { id: excludeId } })
+        }
+    });
+};
+
+const conflictMessage = (conflict, { nama_mapel, kode_mapel }) => {
+    const field = conflict.nama_mapel === nama_mapel ? "Nama" : "Kode";
+    return conflict.deleted_at
+        ? `${field} mata pelajaran sudah dipakai oleh mata pelajaran yang telah dihapus`
+        : `${field} mata pelajaran sudah ada`;
+};
+
+// GET ALL mapel
 const getAllMapel = async (req, res) => {
     try {
-        const mapel = await prisma.MataPelajaran.findMany({
-            where: {
-                deleted_at: null
-            },
-            orderBy: {
-                created_at: "desc"
-            }
+        const mapel = await prisma.mataPelajaran.findMany({
+            where: { deleted_at: null },
+            orderBy: { created_at: "desc" }
         });
         return res.status(200).json({
             success: true,
@@ -25,20 +52,18 @@ const getAllMapel = async (req, res) => {
             error: error.message
         });
     }
-}
-
+};
 
 // GET BY ID mapel
-
 const getMapelById = async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = parseId(req.params.id);
+        if (id === null) {
+            return res.status(400).json({ success: false, message: "ID tidak valid" });
+        }
 
-        const mapel = await prisma.MataPelajaran.findFirst({
-            where: {
-                id: parseInt(id),
-                deleted_at: null
-            }
+        const mapel = await prisma.mataPelajaran.findFirst({
+            where: { id, deleted_at: null }
         });
 
         if (!mapel) {
@@ -61,15 +86,14 @@ const getMapelById = async (req, res) => {
             error: error.message
         });
     }
-}
+};
 
-// create mapel 
-
+// CREATE mapel
 const createMapel = async (req, res) => {
     try {
-        const { nama_mapel} = req.body;
+        const nama_mapel = cleanStr(req.body.nama_mapel);
+        const kode_mapel = cleanStr(req.body.kode_mapel) || null;
 
-        // Valdisasi input
         if (!nama_mapel) {
             return res.status(400).json({
                 success: false,
@@ -77,38 +101,39 @@ const createMapel = async (req, res) => {
             });
         }
 
-        // Cek duplikasi nama mapel
-
-        const existingMapel = await prisma.MataPelajaran.findFirst({
+        const conflicts = await prisma.mataPelajaran.findMany({
             where: {
-                nama_mapel: nama_mapel,
-                deleted_at: null
+                OR: [
+                    { nama_mapel },
+                    ...(kode_mapel ? [{ kode_mapel }] : [])
+                ]
             }
         });
 
-        if (existingMapel) {
+        const active = conflicts.find(c => !c.deleted_at);
+        if (active) {
             return res.status(409).json({
                 success: false,
-                message: "Nama mata pelajaran sudah ada"
+                message: conflictMessage(active, { nama_mapel, kode_mapel })
             });
         }
 
-        //  ceka apakah ada nama mapel yang sudah di soft delete
+        // Nama dan kode masing-masing cocok dengan mapel terhapus yang berbeda
+        if (conflicts.length > 1) {
+            return res.status(409).json({
+                success: false,
+                message: "Nama dan kode cocok dengan dua mata pelajaran terhapus yang berbeda. Gunakan salah satunya saja"
+            });
+        }
 
-        const checkDeletedMapel = await prisma.MataPelajaran.findFirst({
-            where: {
-                nama_mapel: nama_mapel
-            }
-        })
-
-        if (checkDeletedMapel && checkDeletedMapel.deleted_at) {
-            // restore mapel yang di soft delete
-            const restoredMapel = await prisma.MataPelajaran.update({
-                where: {
-                    id: checkDeletedMapel.id
-                },
+        // Cocok dengan satu mapel terhapus (lewat nama atau kode): restore dan perbarui
+        if (conflicts.length === 1) {
+            const restoredMapel = await prisma.mataPelajaran.update({
+                where: { id: conflicts[0].id },
                 data: {
-                    deleted_at: null
+                    deleted_at: null,
+                    nama_mapel,
+                    ...(kode_mapel && { kode_mapel })
                 }
             });
 
@@ -119,20 +144,22 @@ const createMapel = async (req, res) => {
             });
         }
 
-
-        // Buat data baru
-        const newMapel = await prisma.MataPelajaran.create({
-            data: {
-                nama_mapel: nama_mapel
-            }
+        const newMapel = await prisma.mataPelajaran.create({
+            data: { nama_mapel, kode_mapel }
         });
 
         return res.status(201).json({
             success: true,
             message: "Berhasil menambahkan mata pelajaran",
             data: newMapel
-        })
+        });
     } catch (error) {
+        if (error.code === "P2002") {
+            return res.status(409).json({
+                success: false,
+                message: "Nama atau kode mata pelajaran sudah ada"
+            });
+        }
         console.log("Error creating mapel:", error);
         return res.status(500).json({
             success: false,
@@ -140,17 +167,21 @@ const createMapel = async (req, res) => {
             error: error.message
         });
     }
-}
+};
 
-
-// update - update data mapel
-
+// UPDATE mapel
 const updateMapel = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { nama_mapel } = req.body;
+        const id = parseId(req.params.id);
+        if (id === null) {
+            return res.status(400).json({ success: false, message: "ID tidak valid" });
+        }
 
-        // Validasi input
+        const nama_mapel = cleanStr(req.body.nama_mapel);
+        // undefined = tidak diubah, "" = dikosongkan (null)
+        const kodeInput = cleanStr(req.body.kode_mapel);
+        const kode_mapel = kodeInput === undefined ? undefined : kodeInput || null;
+
         if (!nama_mapel) {
             return res.status(400).json({
                 success: false,
@@ -158,13 +189,8 @@ const updateMapel = async (req, res) => {
             });
         }
 
-        // cek apakah jurusan ada
-
-        const existingMapel = await prisma.MataPelajaran.findFirst({
-            where: {
-                id: parseInt(id),
-                deleted_at: null
-            }
+        const existingMapel = await prisma.mataPelajaran.findFirst({
+            where: { id, deleted_at: null }
         });
 
         if (!existingMapel) {
@@ -174,33 +200,24 @@ const updateMapel = async (req, res) => {
             });
         }
 
-        // cek duplikasi nama mapel
+        const conflict = await findConflict({
+            nama_mapel,
+            kode_mapel: kode_mapel || undefined,
+            excludeId: id
+        });
 
-        const duplicateMapel = await prisma.MataPelajaran.findFirst({
-            where: {
-                nama_mapel: nama_mapel,
-                deleted_at: null,
-                NOT: {
-                    id: parseInt(id)
-                }
-            }
-        }); 
-
-        if (duplicateMapel) {
+        if (conflict) {
             return res.status(409).json({
                 success: false,
-                message: "Nama mata pelajaran sudah ada"
+                message: conflictMessage(conflict, { nama_mapel, kode_mapel })
             });
         }
 
-        // update mapel
-
-        const updatedMapel = await prisma.MataPelajaran.update({
-            where: {
-                id: parseInt(id)
-            },
+        const updatedMapel = await prisma.mataPelajaran.update({
+            where: { id },
             data: {
-                nama_mapel: nama_mapel
+                nama_mapel,
+                ...(kode_mapel !== undefined && { kode_mapel })
             }
         });
 
@@ -210,6 +227,12 @@ const updateMapel = async (req, res) => {
             data: updatedMapel
         });
     } catch (error) {
+        if (error.code === "P2002") {
+            return res.status(409).json({
+                success: false,
+                message: "Nama atau kode mata pelajaran sudah ada"
+            });
+        }
         console.log("Error updating mapel:", error);
         return res.status(500).json({
             success: false,
@@ -217,21 +240,18 @@ const updateMapel = async (req, res) => {
             error: error.message
         });
     }
-}
+};
 
-
-// delete mapel (soft delete)
-
+// DELETE mapel (soft delete)
 const deleteMapel = async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = parseId(req.params.id);
+        if (id === null) {
+            return res.status(400).json({ success: false, message: "ID tidak valid" });
+        }
 
-        // Cek apakah mapel ada
-        const existingMapel = await prisma.MataPelajaran.findFirst({
-            where: {
-                id: parseInt(id),
-                deleted_at: null
-            }
+        const existingMapel = await prisma.mataPelajaran.findFirst({
+            where: { id, deleted_at: null }
         });
 
         if (!existingMapel) {
@@ -241,12 +261,8 @@ const deleteMapel = async (req, res) => {
             });
         }
 
-        // Cek apakah mapel digunakan di tabel lain
-
-        const usedInJadwal = await prisma.Jadwal.count({
-            where: {
-                mapel_id: parseInt(id)
-            }
+        const usedInJadwal = await prisma.jadwal.count({
+            where: { mapel_id: id }
         });
 
         if (usedInJadwal > 0) {
@@ -256,16 +272,11 @@ const deleteMapel = async (req, res) => {
             });
         }
 
+        await prisma.mataPelajaran.update({
+            where: { id },
+            data: { deleted_at: new Date() }
+        });
 
-        // soft delete mapel
-        await prisma.MataPelajaran.update({
-            where: {
-                id: parseInt(id)
-            },
-            data: {
-                deleted_at: new Date()
-            }
-        })
         return res.status(200).json({
             success: true,
             message: "Berhasil menghapus mata pelajaran"
@@ -276,10 +287,9 @@ const deleteMapel = async (req, res) => {
             success: false,
             message: "Terjadi kesalahan pada server",
             error: error.message
-        }); 
-    }  
-}
-
+        });
+    }
+};
 
 module.exports = {
     getAllMapel,
@@ -287,4 +297,4 @@ module.exports = {
     createMapel,
     updateMapel,
     deleteMapel
-}
+};
