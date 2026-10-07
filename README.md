@@ -48,8 +48,11 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
   - Pengiriman notifikasi otomatis via Telegram Bot API.
 
 - **Penjadwalan Otomatis**
-  - Cron job untuk pembuatan tahun ajaran baru & penyalinan kelas.
+  - Cron 1 Juli pukul 00:00 WIB membuat tahun ajaran baru dan memproses kenaikan kelas: X → XI, XI → XII, XII → Alumni.
   - Cron job untuk auto-approve status request absensi.
+
+- **Observability**
+  - Log setiap request menampilkan tanggal dan jam WIB (`Asia/Jakarta`), method, URL, status, serta response time.
 
 - **Queue & Redis (Async Processing)**
   - Tap-in & tap-out RFID diproses secara asynchronous via **BullMQ** + **Redis**.
@@ -390,9 +393,9 @@ Aplikasi berjalan di → `http://localhost:3000`
 |--------|----------|------|------|-----------|
 | `GET` | `/mata-pelajaran` | 🔒 | Authenticated | Ambil semua mata pelajaran |
 | `GET` | `/mata-pelajaran/:id` | 🔒 | Authenticated | Ambil detail mata pelajaran |
-| `POST` | `/mata-pelajaran` | 🔒 | `SUPER_ADMIN` | Tambah mata pelajaran baru |
+| `POST` | `/mata-pelajaran` | 🔒 | `SUPER_ADMIN` | Tambah mata pelajaran baru (`kode_mapel`, `nama_mapel`); otomatis restore jika mapel terhapus cocok |
 | `PUT` | `/mata-pelajaran/:id` | 🔒 | `SUPER_ADMIN` | Update mata pelajaran |
-| `DELETE` | `/mata-pelajaran/:id` | 🔒 | `SUPER_ADMIN` | Hapus mata pelajaran |
+| `DELETE` | `/mata-pelajaran/:id` | 🔒 | `SUPER_ADMIN` | Soft-delete mata pelajaran (ditolak jika masih digunakan di jadwal) |
 
 ---
 
@@ -401,8 +404,8 @@ Aplikasi berjalan di → `http://localhost:3000`
 | Method | Endpoint | Auth | Role | Deskripsi |
 |--------|----------|------|------|-----------|
 | `GET` | `/jadwal` | 🔒 | Authenticated | Ambil semua jadwal pelajaran |
-| `POST` | `/jadwal` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Tambah jadwal pelajaran |
-| `POST` | `/jadwal/import` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Import jadwal via Excel |
+| `POST` | `/jadwal` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Tambah jadwal pelajaran (field: `hari`, `kelas_id`, `mapel_id`, `guru_id`, `jam_mulai`, `jam_selesai`) |
+| `POST` | `/jadwal/import` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Import jadwal via Excel (kolom: **HARI, KELAS, JURUSAN, KODE_MAPEL, ID_GURU, JAM_MULAI, JAM_SELESAI**) |
 | `PUT` | `/jadwal/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Update jadwal |
 | `DELETE` | `/jadwal/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Hapus jadwal |
 
@@ -504,6 +507,14 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 ---
 
+### 🎓 Moodle
+
+| Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `GET` | `/moodle/lms-url` | 🔒 | Generate link auto-login ke Moodle LMS (untuk tombol "Buka LMS" di dashboard siswa) |
+
+---
+
 ## � Environment Variables Reference
 
 | Variabel | Tipe | Deskripsi | Contoh |
@@ -516,6 +527,10 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `REDIS_HOST` | String | Host Redis | `127.0.0.1` |
 | `REDIS_PORT` | Number | Port Redis | `6379` |
 | `NODE_ENV` | String | Environment (development/production) | `development` |
+| `TZ` | String | Timezone server (di-set otomatis ke `Asia/Jakarta` di `app.js:1`) | `Asia/Jakarta` |
+| `URL_FRONTEND` | String | URL frontend untuk CORS origin whitelist | `http://localhost:4321` |
+| `MOODLE_BASE_URL` | String | Base URL Moodle LMS (untuk SSO link `/api/v1/moodle/lms-url`) | `https://moodle.example.com` |
+| `YSBO_API_BASE_URL` | String | Base URL API YBSMO untuk autentikasi staf/guru | `https://ysbmo.example.com/api/v1` |
 
 ---
 
@@ -634,7 +649,15 @@ Untuk pertanyaan, bug report, atau saran:
 
 ## 📝 Changelog
 
-### v0.0.3 (Latest)
+### v0.0.4 (Latest)
+- ✅ **Request log WIB**: format log Morgan diubah ke `YYYY-MM-DD HH:mm:ss WIB` menggunakan `Intl.DateTimeFormat` timezone `Asia/Jakarta` — tanpa dependency tambahan (`app.js`).
+- ✅ **Import jadwal pakai `KODE_MAPEL` + `ID_GURU`**: kolom Excel `NAMA_MAPEL` → `KODE_MAPEL`, `NAMA_GURU` → `ID_GURU`; lookup berubah ke `kode_mapel` (unik) dan `id` guru sehingga tidak ambiguitas nama.
+- ✅ **`kode_mapel` pada model `MataPelajaran`**: field baru `kode_mapel` (unique, nullable) ditambahkan ke schema & API; `POST /mata-pelajaran` menerima `kode_mapel`; konflik kode dicek sebelum create/update.
+- 🐛 **Auto-restore mapel terhapus**: `createMapel` mendeteksi mapel soft-deleted dengan nama/kode sama lalu me-restore-nya alih-alih error duplicate.
+- 🐛 **Hapus RFID aktif otomatis saat siswa dihapus**: `deletesSiswa` kini set `is_active = false` pada semua RFID aktif milik siswa sebelum hapus.
+- 🐛 **Siswa: `nipd`/`nik` kosong tidak error**: field opsional dikirim string kosong `""` dikonversi ke `null` agar tidak melanggar unique constraint.
+
+### v0.0.3
 - ✅ **Fitur Kenaikan Kelas**: atur status naik/tinggal/lulus per siswa per tahun ajaran.
   - Endpoint `GET /kenaikan-kelas/preview` & `POST /kenaikan-kelas/submit` (role ADMIN/SUPER_ADMIN).
   - Schema baru: enum `KeputusanKenaikan` (Naik/Tinggal/Lulus), model `KenaikanKelas` dengan unique constraint `[siswa_id, tahun_ajaran_id]`.
@@ -642,10 +665,10 @@ Untuk pertanyaan, bug report, atau saran:
   - Cron `tahunAjaran` sekarang di-load di `app.js` (sebelumnya tidak ter-load → tidak pernah berjalan).
   - `GET /tahun-ajaran` tidak lagi memicu `autoCreateTahunAjaran()` (side-effect dipindah ke cron).
   - `createTahunAjaran` kini non-aktifkan tahun aktif lain sebelum create (mencegah multiple active).
-- 🐛 **Bugfix**: regex `naipkanTingkat` — "XII" match `/^XI/i` menghasilkan "XIII"; sekarang XII dikembalikan apa adanya.
+- 🐛 **Bugfix**: regex `naikkanTingkat` — "XII" match `/^XI/i` menghasilkan "XIII"; sekarang XII dikembalikan apa adanya.
 - 🐛 **Bugfix**: casing Prisma Client (`prisma.Tahun/Kelas/Siswa` → `prisma.tahun/kelas/siswa`) di semua file.
 
-### v0.0.0 (Current)
+### v0.0.0
 - ✅ Core features: Auth, Users, Siswa, Guru, Kelas
 - ✅ RFID attendance system dengan queue processing
 - ✅ Telegram notifications
@@ -654,7 +677,7 @@ Untuk pertanyaan, bug report, atau saran:
 - ✅ Final attendance finalization
 - ✅ Status request workflow
 
-### v0.0.1 (Latest)
+### v0.0.1
 - ✅ Login siswa via Moodle (`/auth/moodle-login`)
 - ✅ Endpoint profil siswa di `/auth/me` (relasi `siswa`, `kelas`, `kelas.walas`, `rfid`)
 - ✅ Filter `siswa_id` di `/absensi-siswa/laporan/harian`
@@ -663,7 +686,7 @@ Untuk pertanyaan, bug report, atau saran:
 ### v0.0.2
 - ✅ **Skema `jadwal`**: kolom `jam_mulai` / `jam_selesai` dikonversi dari `TIME` ke `VARCHAR(5)` bertipe string `"HH:MM"` — lebih mudah dipelihara dan konsisten dengan lapisan API (validasi `HH:MM`).
   - Range query jadwal aktif (`getActiveJadwalGuru`) & overlap deteksi bentrok jadwal kini pakai komparasi string (zero-padded → leksikografi = kronologi).
-  - Helper `formatJam()` tangggu input string; helper `nowAsDbTime` (mati) diganti `nowWibTimeString()`.
+  - Helper `formatJam()` terima input string; helper `nowAsDbTime` (mati) diganti `nowWibTimeString()`.
 - 🐛 **Bugfix `auto-tapOut`**: filter `jadwal.deleted_at` dihapus (kolom tak ada di model → sebelumnya bikin auto tap-out selalu gagal diam‑diam).
 - 🐛 **Bugfix cron**: `autoFinalAbsensi` digerakkan `20:05` (dulu `20:00` bentrokan dengan `auto-tapOut` pukul `20:00`), agar finalisasi berjalan setelah tap‑out terisi.
 - 🧹 Seeder & test di‑update ke string `HH:MM`.
@@ -677,5 +700,5 @@ Untuk pertanyaan, bug report, atau saran:
 
 ---
 
-**Last Updated:** 7 September 2026  
+**Last Updated:** 7 Oktober 2026  
 **Status:** Active Development 🚀
