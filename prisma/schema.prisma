@@ -291,6 +291,7 @@ model Jadwal {
 
 model MataPelajaran {
   id         Int    @id @default(autoincrement())
+  kode_mapel String? @unique @db.VarChar(50)
   nama_mapel String @unique @db.VarChar(100)
 
   jadwal Jadwal[]
