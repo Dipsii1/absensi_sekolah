@@ -7,7 +7,7 @@
 ![jwt auth](https://img.shields.io/badge/auth-JWT-orange)
 ![bullmq](https://img.shields.io/badge/queue-BullMQ-red)
 ![redis](https://img.shields.io/badge/cache-Redis-red)
-![license MIT](https://img.shields.io/badge/license-MIT-green)
+![license internal](https://img.shields.io/badge/license-Internal-lightgrey)
 
 Backend API untuk sistem **manajemen absensi sekolah** berbasis **Node.js + Express + Prisma**.
 Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikasi Telegram**, **ekspor Excel**, **cron job otomatis**, serta **role-based access control** yang terstruktur.
@@ -19,7 +19,7 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
 - **Authentication & Authorization**
   - Login staf/guru wajib melalui YBSMO; backend menerbitkan JWT setelah autentikasi berhasil.
   - Data guru menggunakan `id_user` YBSMO sebagai `NIP`; akun lokal dihubungkan ke guru yang sudah disinkronkan.
-  - Role: `SUPER_ADMIN`, `ADMIN`, `GURU`, `WALAS`, `KESISWAAN`.
+  - Role: `SUPER_ADMIN`, `ADMIN`, `GURU`, `WALAS`, `KESISWAAN`, `SISWA`.
   - Middleware `requirePokja` untuk akses yang memerlukan keanggotaan Pokja.
 
 - **Manajemen Data**
@@ -56,7 +56,7 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
 
 - **Queue & Redis (Async Processing)**
   - Tap-in & tap-out RFID diproses secara asynchronous via **BullMQ** + **Redis**.
-  - Endpoint langsung return `202 Accepted`, proses ke DB dan notifikasi Telegram dipelayani worker di background.
+  - Endpoint langsung return `202 Accepted`, proses ke DB dan notifikasi Telegram dilayani worker di background.
   - Retry otomatis (3x, 5s fixed backoff) bila worker gagal.
 
 - **Optimasi Dashboard Siswa**
@@ -152,10 +152,11 @@ absensi_sekolah/
 │   └── config/                  # Konfigurasi (Prisma client, Redis, dll)
 │       ├── prisma.js
 │       └── redis.js
-├── views/                      # Template Jade
+├── views/                      # Template Pug
 ├── app.js                      # Konfigurasi Express
 ├── prisma.config.ts
-├── .env                        # Konfigurasi environment
+├── .env                        # Konfigurasi environment (dibuat manual, tidak di-commit)
+├── .gitignore
 └── package.json
 ```
 
@@ -184,6 +185,7 @@ Buat file `.env` di root project:
 DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/absensi_sekolah"
 JWT_SECRET="your_jwt_secret_key"
 TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
+TELEGRAM_GROUP_ID="your_telegram_group_id"
 PORT=3000
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
@@ -473,11 +475,11 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 | Method | Endpoint | Auth | Role | Deskripsi |
 |--------|----------|------|------|-----------|
-| `GET` | `/final-absensi/filters` | 🔒 | Ambil filter metadata untuk export |
-| `GET` | `/final-absensi` | 🔒 | Ambil semua data final absensi |
-| `POST` | `/final-absensi/siswa` | 🔒 | Finalisasi 1 siswa secara manual |
-| `POST` | `/final-absensi/kelas/:kelas_id` | 🔒 | Finalisasi seluruh siswa dalam 1 kelas |
-| `POST` | `/final-absensi/semua-kelas` | 🔒 | Finalisasi semua kelas aktif |
+| `GET` | `/final-absensi/filters` | 🔒 | Authenticated | Ambil filter metadata untuk export |
+| `GET` | `/final-absensi` | 🔒 | Authenticated | Ambil semua data final absensi |
+| `POST` | `/final-absensi/siswa` | 🔒 | Authenticated | Finalisasi 1 siswa secara manual |
+| `POST` | `/final-absensi/kelas/:kelas_id` | 🔒 | Authenticated | Finalisasi seluruh siswa dalam 1 kelas |
+| `POST` | `/final-absensi/semua-kelas` | 🔒 | Authenticated | Finalisasi semua kelas aktif |
 | `POST` | `/final-absensi/all` | 🔒 | `ADMIN` | Finalisasi seluruh siswa pada tanggal tertentu (siswa belum tap-in masuk sebagai Alpha) |
 
 ---
@@ -544,6 +546,8 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `URL_FRONTEND` | String | URL frontend untuk CORS origin whitelist | `http://localhost:4321` |
 | `MOODLE_BASE_URL` | String | Base URL Moodle LMS (untuk SSO link `/api/v1/moodle/lms-url`) | `https://moodle.example.com` |
 | `YSBO_API_BASE_URL` | String | Base URL API YBSMO untuk autentikasi staf/guru | `https://ysbmo.example.com/api/v1` |
+| `SUPER_ADMIN_USERNAME` | String | Username akun SUPER_ADMIN awal (dipakai seed) | `admin` |
+| `SUPER_ADMIN_PASSWORD` | String | Password akun SUPER_ADMIN awal (dipakai seed) | `change_me` |
 
 ---
 
@@ -586,7 +590,7 @@ Aplikasi berjalan di → `http://localhost:3000`
 ### Production Build
 ```bash
 # Install dependencies
-npm install --production
+npm ci --omit=dev
 
 # Generate Prisma Client
 npx prisma generate
@@ -606,39 +610,24 @@ npm install -g pm2
 # Start application
 pm2 start app.js --name "absensi-sekolah"
 
-# Start with ecosystem config
-pm2 start ecosystem.config.js
-
 # View logs
 pm2 logs absensi-sekolah
-```
-
-### Docker (Optional)
-```bash
-# Build image
-docker build -t absensi-sekolah .
-
-# Run container
-docker run -p 3000:3000 \
-  -e DATABASE_URL="..." \
-  -e REDIS_HOST="redis" \
-  absensi-sekolah
 ```
 
 ---
 
 ## 🤝 Contributing
 
-Kontribusi sangat diterima! Untuk berkontribusi:
+Repository ini dikerjakan oleh tim internal. Alur kerja:
 
-1. Fork repository ini
-2. Buat feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push ke branch (`git push origin feature/AmazingFeature`)
-5. Buka Pull Request
+1. Clone repository ini
+2. Buat feature branch (`git checkout -b feature/nama-fitur`)
+3. Commit changes (`git commit -m 'Tambah nama-fitur'`)
+4. Push ke branch (`git push origin feature/nama-fitur`)
+5. Buka Pull Request untuk direview anggota tim
 
 **Guidelines:**
-- Follow kode style yang sudah ada
+- Ikuti kode style yang sudah ada
 - Test fitur baru sebelum PR
 - Update dokumentasi jika diperlukan
 - Satu PR untuk satu fitur/bugfix
@@ -647,22 +636,19 @@ Kontribusi sangat diterima! Untuk berkontribusi:
 
 ## 📄 License
 
-Project ini dilisensikan di bawah **MIT License**. Lihat file [LICENSE](LICENSE) untuk detail lebih lanjut.
+Project ini bersifat **internal** dan hanya digunakan untuk kebutuhan sekolah. Tidak untuk didistribusikan atau digunakan di luar tim pengembang.
 
 ---
 
 ## 📞 Support & Contact
 
-Untuk pertanyaan, bug report, atau saran:
-- 📧 Email: [contact info]
-- 🐙 GitHub Issues: [Submit Issue](https://github.com/Dipsii1/absensi_sekolah/issues)
-- 💬 Telegram: [Hubungi Admin]
+Untuk pertanyaan, bug report, atau saran, hubungi tim pengembang atau buat issue di [GitHub Issues](https://github.com/Dipsii1/absensi_sekolah/issues).
 
 ---
 
 ## 📝 Changelog
 
-### v0.0.5(Latest)
+### v0.0.5 (latest)
 - ✅ **Endpoint dashboard total siswa**: tambah `GET /siswa/count` untuk mengambil jumlah siswa dengan `deleted_at = null` tanpa memuat daftar atau relasi siswa.
 - ✅ **Redis cache total siswa**: key `dashboard:stats:total_siswa` disimpan selama 300 detik; respons memuat `data.total`, `data.lastUpdated`, dan flag `cached`.
 - ✅ **Invalidasi cache otomatis**: cache total siswa dihapus setelah `createSiswa`, `updateSiswa`, `deleteSiswa`, dan `importSiswa` berhasil, sehingga request berikutnya menghitung data terkini.
