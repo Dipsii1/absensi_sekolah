@@ -6,6 +6,7 @@ const { verifyToken, checkRole } = require("../middleware/auth");
 
 router.post("/import", verifyToken, checkRole("ADMIN", "SUPER_ADMIN"), upload.single("file"), siswaControllers.importSiswa);
 router.get("/", siswaControllers.getAllSiswa);
+router.get("/count", verifyToken, checkRole("ADMIN", "SUPER_ADMIN"), siswaControllers.getSiswaCount);
 router.get("/:id", siswaControllers.getSiswaById);
 router.post("/", verifyToken, checkRole("ADMIN", "SUPER_ADMIN"), siswaControllers.createSiswa);
 router.put("/:id", verifyToken, checkRole("ADMIN", "SUPER_ADMIN"), siswaControllers.updateSiswa);

@@ -59,6 +59,12 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
   - Endpoint langsung return `202 Accepted`, proses ke DB dan notifikasi Telegram dipelayani worker di background.
   - Retry otomatis (3x, 5s fixed backoff) bila worker gagal.
 
+- **Optimasi Dashboard Siswa**
+  - `GET /siswa/count` menyediakan total siswa aktif tanpa memuat seluruh data siswa beserta relasinya.
+  - Total siswa di-cache di Redis selama 5 menit untuk mempercepat card dashboard Admin dan Super Admin.
+  - Cache total otomatis dihapus setelah siswa dibuat, diperbarui, dihapus, atau diimport.
+  - Index gabungan `deleted_at, created_at` mendukung query daftar siswa aktif yang diurutkan berdasarkan waktu dibuat.
+
 - **Status Request**
   - Permintaan perubahan status absensi oleh Guru.
   - Persetujuan oleh Walas.
@@ -345,11 +351,16 @@ Aplikasi berjalan di → `http://localhost:3000`
 | Method | Endpoint | Auth | Role | Deskripsi |
 |--------|----------|------|------|-----------|
 | `GET` | `/siswa` | 🔒 | Authenticated | Ambil semua data siswa |
+| `GET` | `/siswa/count` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Total siswa aktif (cached Redis 5 menit, otomatis invalidasi saat data berubah) |
 | `GET` | `/siswa/:id` | 🔒 | Authenticated | Ambil detail siswa |
 | `POST` | `/siswa` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Tambah siswa baru |
 | `PUT` | `/siswa/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Update data siswa |
 | `DELETE` | `/siswa/:id` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Hapus data siswa |
 | `POST` | `/siswa/import` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Import massal siswa via file Excel |
+
+> **`GET /siswa/count`** — untuk dashboard Admin/Super Admin. Mengembalikan `{ success, data: { total, lastUpdated }, cached }`.
+> Hasil di-cache di Redis dengan key `dashboard:stats:total_siswa` selama **300 detik (5 menit)**. Cache otomatis dihapus saat ada `createSiswa`, `updateSiswa`, `deleteSiswa`, atau `importSiswa` berhasil.
+> **Protected**: membutuhkan JWT melalui header `Authorization: Bearer <token>` (role `ADMIN` atau `SUPER_ADMIN`).
 
 ---
 
@@ -416,6 +427,17 @@ Aplikasi berjalan di → `http://localhost:3000`
 ### 📇 RFID
 
 | Method | Endpoint | Auth | Deskripsi |
+|--------|----------|------|-----------|
+| `GET` | `/rfid` | 🔒 | Ambil semua data RFID |
+| `GET` | `/rfid/load-Rfid` | 🔒 | Load semua RFID (aktif) |
+| `GET` | `/rfid/:id` | 🔒 | Ambil detail RFID |
+| `POST` | `/rfid` | 🔒 | Tambah RFID baru |
+| `POST` | `/rfid/import` | 🔒 | Import massal RFID via Excel |
+| `PUT` | `/rfid/:id` | 🔒 | Update data RFID |
+| `PATCH` | `/rfid/:id` | 🔒 | Patch data RFID |
+| `DELETE` | `/rfid/:id` | 🔒 | Hapus RFID |
+
+---
 |--------|----------|------|-----------|
 | `GET` | `/rfid` | 🔒 | Ambil semua data RFID |
 | `GET` | `/rfid/load-Rfid` | 🔒 | Load semua RFID (aktif) |
@@ -648,6 +670,12 @@ Untuk pertanyaan, bug report, atau saran:
 ---
 
 ## 📝 Changelog
+
+### v0.0.5
+- ✅ **Endpoint dashboard total siswa**: tambah `GET /siswa/count` untuk mengambil jumlah siswa dengan `deleted_at = null` tanpa memuat daftar atau relasi siswa.
+- ✅ **Redis cache total siswa**: key `dashboard:stats:total_siswa` disimpan selama 300 detik; respons memuat `data.total`, `data.lastUpdated`, dan flag `cached`.
+- ✅ **Invalidasi cache otomatis**: cache total siswa dihapus setelah `createSiswa`, `updateSiswa`, `deleteSiswa`, dan `importSiswa` berhasil, sehingga request berikutnya menghitung data terkini.
+- ✅ **Index query siswa aktif**: model Prisma `Siswa` mendapat index gabungan `@@index([deleted_at, created_at])` untuk query daftar siswa aktif yang memakai urutan `created_at`.
 
 ### v0.0.4 (Latest)
 - ✅ **Request log WIB**: format log Morgan diubah ke `YYYY-MM-DD HH:mm:ss WIB` menggunakan `Intl.DateTimeFormat` timezone `Asia/Jakarta` — tanpa dependency tambahan (`app.js`).

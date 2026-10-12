@@ -339,6 +339,8 @@ const createSiswa = async (req, res) => {
             }
         }
 
+        invalidateSiswaCountCache();
+
         return res.status(201).json({
             success: true,
             message: "Berhasil menambahkan siswa baru",
@@ -597,6 +599,8 @@ const updateSiswa = async (req, res) => {
             }
         }
 
+        invalidateSiswaCountCache();
+
         return res.status(200).json({
             success: true,
             message: "Berhasil mengupdate data siswa",
@@ -653,6 +657,8 @@ const deleteSiswa = async (req, res) => {
                 data: { deleted_at: now }
             })
         ]);
+
+        invalidateSiswaCountCache();
 
         return res.status(200).json({
             success: true,
@@ -896,6 +902,8 @@ const importSiswa = async (req, res) => {
             timeout: 30000
         });
 
+        invalidateSiswaCountCache();
+
         return res.status(201).json({
             success: true,
             message: `Berhasil mengimport ${toInsert.length} data siswa`,
@@ -912,11 +920,58 @@ const importSiswa = async (req, res) => {
     }
 };
 
+const getSiswaCount = async (req, res) => {
+    const redis = require("../config/redis");
+    const CACHE_KEY = "dashboard:stats:total_siswa";
+    const TTL = 300;
+
+    try {
+        const cached = await redis.get(CACHE_KEY);
+        if (cached) {
+            return res.json({
+                success: true,
+                data: JSON.parse(cached),
+                cached: true
+            });
+        }
+
+        const total = await prisma.siswa.count({
+            where: { deleted_at: null }
+        });
+
+        const payload = {
+            total,
+            lastUpdated: new Date().toISOString()
+        };
+
+        await redis.setex(CACHE_KEY, TTL, JSON.stringify(payload));
+
+        return res.json({
+            success: true,
+            data: payload,
+            cached: false
+        });
+    } catch (error) {
+        console.error("Error in getSiswaCount:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
+
+const invalidateSiswaCountCache = () => {
+    const redis = require("../config/redis");
+    redis.del("dashboard:stats:total_siswa").catch(() => {});
+};
+
 module.exports = {
     getAllSiswa,
     getSiswaById,
     createSiswa,
     updateSiswa,
     deleteSiswa,
-    importSiswa
+    importSiswa,
+    getSiswaCount
 };

@@ -145,7 +145,7 @@ model Siswa {
   @@index([kelas_id, deleted_at])
   @@index([orangtua_id])
   @@index([nama])
-  @@index([deleted_at])
+  @@index([deleted_at, created_at])
   @@map("siswa")
 }
 
