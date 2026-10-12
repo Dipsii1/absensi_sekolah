@@ -359,7 +359,9 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `POST` | `/siswa/import` | 🔒 | `ADMIN`, `SUPER_ADMIN` | Import massal siswa via file Excel |
 
 > **`GET /siswa/count`** — untuk dashboard Admin/Super Admin. Mengembalikan `{ success, data: { total, lastUpdated }, cached }`.
+>
 > Hasil di-cache di Redis dengan key `dashboard:stats:total_siswa` selama **300 detik (5 menit)**. Cache otomatis dihapus saat ada `createSiswa`, `updateSiswa`, `deleteSiswa`, atau `importSiswa` berhasil.
+>
 > **Protected**: membutuhkan JWT melalui header `Authorization: Bearer <token>` (role `ADMIN` atau `SUPER_ADMIN`).
 
 ---
@@ -427,17 +429,6 @@ Aplikasi berjalan di → `http://localhost:3000`
 ### 📇 RFID
 
 | Method | Endpoint | Auth | Deskripsi |
-|--------|----------|------|-----------|
-| `GET` | `/rfid` | 🔒 | Ambil semua data RFID |
-| `GET` | `/rfid/load-Rfid` | 🔒 | Load semua RFID (aktif) |
-| `GET` | `/rfid/:id` | 🔒 | Ambil detail RFID |
-| `POST` | `/rfid` | 🔒 | Tambah RFID baru |
-| `POST` | `/rfid/import` | 🔒 | Import massal RFID via Excel |
-| `PUT` | `/rfid/:id` | 🔒 | Update data RFID |
-| `PATCH` | `/rfid/:id` | 🔒 | Patch data RFID |
-| `DELETE` | `/rfid/:id` | 🔒 | Hapus RFID |
-
----
 |--------|----------|------|-----------|
 | `GET` | `/rfid` | 🔒 | Ambil semua data RFID |
 | `GET` | `/rfid/load-Rfid` | 🔒 | Load semua RFID (aktif) |
@@ -537,7 +528,7 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 ---
 
-## � Environment Variables Reference
+## 📖 Environment Variables Reference
 
 | Variabel | Tipe | Deskripsi | Contoh |
 |----------|------|-----------|--------|
@@ -677,7 +668,7 @@ Untuk pertanyaan, bug report, atau saran:
 - ✅ **Invalidasi cache otomatis**: cache total siswa dihapus setelah `createSiswa`, `updateSiswa`, `deleteSiswa`, dan `importSiswa` berhasil, sehingga request berikutnya menghitung data terkini.
 - ✅ **Index query siswa aktif**: model Prisma `Siswa` mendapat index gabungan `@@index([deleted_at, created_at])` untuk query daftar siswa aktif yang memakai urutan `created_at`.
 
-### v0.0.4 (Latest)
+### v0.0.4
 - ✅ **Request log WIB**: format log Morgan diubah ke `YYYY-MM-DD HH:mm:ss WIB` menggunakan `Intl.DateTimeFormat` timezone `Asia/Jakarta` — tanpa dependency tambahan (`app.js`).
 - ✅ **Import jadwal pakai `KODE_MAPEL` + `ID_GURU`**: kolom Excel `NAMA_MAPEL` → `KODE_MAPEL`, `NAMA_GURU` → `ID_GURU`; lookup berubah ke `kode_mapel` (unik) dan `id` guru sehingga tidak ambiguitas nama.
 - ✅ **`kode_mapel` pada model `MataPelajaran`**: field baru `kode_mapel` (unique, nullable) ditambahkan ke schema & API; `POST /mata-pelajaran` menerima `kode_mapel`; konflik kode dicek sebelum create/update.
@@ -696,6 +687,20 @@ Untuk pertanyaan, bug report, atau saran:
 - 🐛 **Bugfix**: regex `naikkanTingkat` — "XII" match `/^XI/i` menghasilkan "XIII"; sekarang XII dikembalikan apa adanya.
 - 🐛 **Bugfix**: casing Prisma Client (`prisma.Tahun/Kelas/Siswa` → `prisma.tahun/kelas/siswa`) di semua file.
 
+### v0.0.2
+- ✅ **Skema `jadwal`**: kolom `jam_mulai` / `jam_selesai` dikonversi dari `TIME` ke `VARCHAR(5)` bertipe string `"HH:MM"` — lebih mudah dipelihara dan konsisten dengan lapisan API (validasi `HH:MM`).
+  - Range query jadwal aktif (`getActiveJadwalGuru`) & overlap deteksi bentrok jadwal kini pakai komparasi string (zero-padded → leksikografi = kronologi).
+  - Helper `formatJam()` terima input string; helper `nowAsDbTime` (mati) diganti `nowWibTimeString()`.
+- 🐛 **Bugfix `auto-tapOut`**: filter `jadwal.deleted_at` dihapus (kolom tak ada di model → sebelumnya bikin auto tap-out selalu gagal diam‑diam).
+- 🐛 **Bugfix cron**: `autoFinalAbsensi` digerakkan `20:05` (dulu `20:00` bentrokan dengan `auto-tapOut` pukul `20:00`), agar finalisasi berjalan setelah tap‑out terisi.
+- 🧹 Seeder & test di‑update ke string `HH:MM`.
+
+### v0.0.1
+- ✅ Login siswa via Moodle (`/auth/moodle-login`)
+- ✅ Endpoint profil siswa di `/auth/me` (relasi `siswa`, `kelas`, `kelas.walas`, `rfid`)
+- ✅ Filter `siswa_id` di `/absensi-siswa/laporan/harian`
+- ✅ Endpoint baru `/absensi-siswa/rekap-saya` khusus role SISWA (membaca dari `FinalAbsensi` berdasarkan JWT)
+
 ### v0.0.0
 - ✅ Core features: Auth, Users, Siswa, Guru, Kelas
 - ✅ RFID attendance system dengan queue processing
@@ -704,20 +709,6 @@ Untuk pertanyaan, bug report, atau saran:
 - ✅ Role-based access control
 - ✅ Final attendance finalization
 - ✅ Status request workflow
-
-### v0.0.1
-- ✅ Login siswa via Moodle (`/auth/moodle-login`)
-- ✅ Endpoint profil siswa di `/auth/me` (relasi `siswa`, `kelas`, `kelas.walas`, `rfid`)
-- ✅ Filter `siswa_id` di `/absensi-siswa/laporan/harian`
-- ✅ Endpoint baru `/absensi-siswa/rekap-saya` khusus role SISWA (membaca dari `FinalAbsensi` berdasarkan JWT)
-
-### v0.0.2
-- ✅ **Skema `jadwal`**: kolom `jam_mulai` / `jam_selesai` dikonversi dari `TIME` ke `VARCHAR(5)` bertipe string `"HH:MM"` — lebih mudah dipelihara dan konsisten dengan lapisan API (validasi `HH:MM`).
-  - Range query jadwal aktif (`getActiveJadwalGuru`) & overlap deteksi bentrok jadwal kini pakai komparasi string (zero-padded → leksikografi = kronologi).
-  - Helper `formatJam()` terima input string; helper `nowAsDbTime` (mati) diganti `nowWibTimeString()`.
-- 🐛 **Bugfix `auto-tapOut`**: filter `jadwal.deleted_at` dihapus (kolom tak ada di model → sebelumnya bikin auto tap-out selalu gagal diam‑diam).
-- 🐛 **Bugfix cron**: `autoFinalAbsensi` digerakkan `20:05` (dulu `20:00` bentrokan dengan `auto-tapOut` pukul `20:00`), agar finalisasi berjalan setelah tap‑out terisi.
-- 🧹 Seeder & test di‑update ke string `HH:MM`.
 
 ---
 
