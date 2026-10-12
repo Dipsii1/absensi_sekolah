@@ -46,8 +46,7 @@ const tapOutWorker = new Worker('tap-out', async (job) => {
     if (gapMs < MIN_GAP_MS) {
         const gapMinutes = Math.max(0, Math.floor(gapMs / 60000))
         throw new Error(
-            `Belum bisa tap out, baru ${gapMinutes} menit sejak tap in. ` +
-            `Tunggu minimal ${MIN_GAP_MINUTES} menit sejak tap in.`
+            `Anda sudah Tap in pada jam ${formatTime(absensiHariIni.tap_in)} ` 
         )
     }
 

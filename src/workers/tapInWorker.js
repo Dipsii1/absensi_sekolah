@@ -5,6 +5,8 @@ const { sendTapInNotification } = require('../services/telegramServices')
 const { formatDate, formatTime, getTodayStrWIB, toDateOnly, wibTodayAt } = require('../helper/indexUtils')
 const { getHariFromDate } = require('../helper/daysUtils')
 
+const BATAS_TAP_IN_MENIT = 15
+
 const tapInWorker = new Worker('tap-in', async (job) => {
     const { rfidId, siswaId, kelasId, siswaData, receivedAt } = job.data
 
@@ -46,25 +48,22 @@ const tapInWorker = new Worker('tap-in', async (job) => {
     }
 
     const tapInTime = new Date(receivedAt)
-    const threshold = wibTodayAt(jadwalPertama.jam_mulai)
+    const jamMulai = wibTodayAt(jadwalPertama.jam_mulai)
+    const batasAkhir = new Date(jamMulai.getTime() + BATAS_TAP_IN_MENIT * 60 * 1000)
 
-    console.log('[DEBUG JADWAL]', {
-        jam_mulai: jadwalPertama.jam_mulai,
-        threshold: threshold?.toISOString?.(),
-        tap_in: tapInTime.toISOString(),
-        status: tapInTime <= threshold ? 'Tepat_Waktu' : 'Terlambat'
-    });
-
-    const statusTapIn = tapInTime <= threshold ? 'Tepat_Waktu' : 'Terlambat'
     console.log('[DEBUG TAP]', {
         receivedAt,
         tapInTime: tapInTime.toISOString(),
         jadwalMulai: jadwalPertama.jam_mulai,
-        threshold: threshold.toISOString(),
-        status: tapInTime <= threshold
-            ? 'Tepat_Waktu'
-            : 'Terlambat'
+        jamMulai: jamMulai.toISOString(),
+        batasAkhir: batasAkhir.toISOString()
     })
+
+    if (tapInTime > batasAkhir) {
+        throw new Error(`Tap in ditolak: sudah lewat ${BATAS_TAP_IN_MENIT} menit dari jam mulai pelajaran (${jadwalPertama.jam_mulai})`)
+    }
+
+    const statusTapIn = tapInTime <= jamMulai ? 'Tepat_Waktu' : 'Terlambat'
 
     const absensi = await prisma.absensiSiswa.create({
         data: {
@@ -102,7 +101,5 @@ tapInWorker.on('completed', (job, result) => {
         console.log(`[TapIn Worker] Job ${job.id} skipped: ${result.reason}`)
     }
 })
-
-
 
 module.exports = tapInWorker
