@@ -662,7 +662,7 @@ Untuk pertanyaan, bug report, atau saran:
 
 ## 📝 Changelog
 
-### v0.0.5
+### v0.0.5(Latest)
 - ✅ **Endpoint dashboard total siswa**: tambah `GET /siswa/count` untuk mengambil jumlah siswa dengan `deleted_at = null` tanpa memuat daftar atau relasi siswa.
 - ✅ **Redis cache total siswa**: key `dashboard:stats:total_siswa` disimpan selama 300 detik; respons memuat `data.total`, `data.lastUpdated`, dan flag `cached`.
 - ✅ **Invalidasi cache otomatis**: cache total siswa dihapus setelah `createSiswa`, `updateSiswa`, `deleteSiswa`, dan `importSiswa` berhasil, sehingga request berikutnya menghitung data terkini.
@@ -719,5 +719,5 @@ Untuk pertanyaan, bug report, atau saran:
 
 ---
 
-**Last Updated:** 7 Oktober 2026  
+**Last Updated:** 12 Oktober 2026  
 **Status:** Active Development 🚀
