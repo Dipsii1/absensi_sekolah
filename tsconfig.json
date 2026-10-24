@@ -20,6 +20,6 @@
     "noUnusedParameters": false,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*", "bin/**/*", "app.js", "app.ts"],
+  "include": ["src/**/*", "bin/**/*", "app.js", "app.ts", "bin/www.ts", "bin/www.js"],
   "exclude": ["node_modules", "dist"]
 }

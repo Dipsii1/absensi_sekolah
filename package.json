@@ -4,8 +4,8 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "start": "node dist/bin/www",
-    "dev": "tsx watch bin/www",
+    "start": "node dist/bin/www.js",
+    "dev": "tsx watch bin/www.ts",
     "build": "tsc && prisma generate",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
