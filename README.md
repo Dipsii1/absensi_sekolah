@@ -83,8 +83,7 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
 absensi_sekolah/
 ├── bin/                        # Entry point server (www)
 ├── prisma/
-│   ├── schema.prisma           # Schema database (Prisma)
-│   └── seed.js                 # Data awal database
+│   └── schema.prisma           # Schema database (Prisma)
 ├── public/
 │   └── stylesheets/            # Static CSS
 ├── src/
@@ -206,12 +205,6 @@ npx prisma generate
 
 # Jalankan migrasi database
 npx prisma migrate dev --name init
-
-# Seed data awal
-npm run seed
-
-# CATATAN: seed saat ini menghapus SEMUA data transaksi & master,
-# lalu membuat ulang satu akun SUPER_ADMIN dari variabel .env.
 ```
 
 ### 5. Jalankan Redis
@@ -262,8 +255,9 @@ Aplikasi berjalan di → `http://localhost:3000`
 | Script | Perintah | Keterangan |
 |---|---|---|
 | Start | `npm start` | Jalankan server production |
-| Dev | `npm run dev` | Jalankan dengan nodemon |
-| Seed | `npm run seed` | Isi data awal database |
+| Dev | `npm run dev` | Jalankan dengan tsx watch |
+| Build | `npm run build` | Compile TypeScript + prisma generate |
+| Typecheck | `npm run typecheck` | Cek tipe tanpa compile |
 | Migrate | `npx prisma migrate dev` | Jalankan migrasi DB |
 | Studio | `npx prisma studio` | Buka Prisma Studio (GUI) |
 
@@ -546,8 +540,6 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `URL_FRONTEND` | String | URL frontend untuk CORS origin whitelist | `http://localhost:4321` |
 | `MOODLE_BASE_URL` | String | Base URL Moodle LMS (untuk SSO link `/api/v1/moodle/lms-url`) | `https://moodle.example.com` |
 | `YSBO_API_BASE_URL` | String | Base URL API YBSMO untuk autentikasi staf/guru | `https://ysbmo.example.com/api/v1` |
-| `SUPER_ADMIN_USERNAME` | String | Username akun SUPER_ADMIN awal (dipakai seed) | `admin` |
-| `SUPER_ADMIN_PASSWORD` | String | Password akun SUPER_ADMIN awal (dipakai seed) | `change_me` |
 
 ---
 

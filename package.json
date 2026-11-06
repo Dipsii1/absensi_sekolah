@@ -4,19 +4,15 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "start": "node ./bin/www",
-    "dev": "nodemon app.js",
-    "seed": "node prisma/seed.js",
-    "build": "prisma generate",
+    "start": "node dist/bin/www.js",
+    "dev": "tsx watch bin/www.ts",
+    "build": "tsc && prisma generate",
+    "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "db:push": "prisma db push",
-    "db:seed": "node prisma/seed.js"
-  },
-  "prisma": {
-    "seed": "node prisma/seed.js"
+    "db:push": "prisma db push"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -42,6 +38,20 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@types/bcrypt": "^6.0.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/debug": "^4.1.13",
+    "@types/express": "^5.0.6",
+    "@types/http-errors": "^2.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.10",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^26.6.5",
+    "@types/node-telegram-bot-api": "^0.64.15",
+    "@types/pug": "^2.0.10",
+    "nodemon": "^3.1.14",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }
