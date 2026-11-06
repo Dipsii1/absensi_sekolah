@@ -1,11 +1,11 @@
-const cron = require("node-cron");
-const { autoCreateTahunAjaran } = require("../controllers/tahunControllers");
+import cron from "node-cron";
+import { autoCreateTahunAjaran } from "../controllers/tahunControllers";
 
 (async () => {
     try {
         await autoCreateTahunAjaran();
     } catch (error) {
-        console.error("[CRON] Gagal memastikan tahun ajaran:", error.message);
+        console.error("[CRON] Gagal memastikan tahun ajaran:", error instanceof Error ? error.message : String(error));
     }
 })();
 
@@ -16,7 +16,7 @@ cron.schedule("0 0 1 7 *", async () => {
         const result = await autoCreateTahunAjaran();
         console.log(`[CRON] Berhasil: ${result.tahun_ajaran} | Mulai: ${result.tanggal_mulai} | Selesai: ${result.tanggal_selesai}`);
     } catch (error) {
-        console.error("[CRON] Gagal membuat tahun ajaran:", error.message);
+        console.error("[CRON] Gagal membuat tahun ajaran:", error instanceof Error ? error.message : String(error));
     }
 }, {
     timezone: "Asia/Jakarta"

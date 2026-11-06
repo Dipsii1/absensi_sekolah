@@ -1,7 +1,8 @@
-const cron = require("node-cron");
-const prisma = require("../config/prisma");
-const { getTodayStrWIB, wibTodayAt } = require("../helper/dateUtils");
-const { getHariFromDate } = require("../helper/daysUtils");
+import cron from "node-cron";
+import { Prisma, Hari, StatusKelas, StatusSiswa } from "@prisma/client";
+import prisma from "../config/prisma";
+import { getTodayStrWIB, wibTodayAt } from "../helper/dateUtils";
+import { getHariFromDate } from "../helper/daysUtils";
 
 // Jalankan setiap hari jam 20:00 WIB (Senin-Sabtu)
 cron.schedule("0 20 * * 1-6", async () => {
@@ -28,10 +29,10 @@ cron.schedule("0 20 * * 1-6", async () => {
         // Ambil jadwal terakhir per kelas untuk hari ini
         const semuaJadwal = await prisma.jadwal.findMany({
             where: {
-                hari,
+                hari: (getHariFromDate(new Date()) as Hari),
                 kelas: {
                     deleted_at: null,
-                    status_kelas: "Active",
+                    status_kelas: StatusKelas.Active,
                     tahun_ajaran_id: tahunAktif.id
                 }
             },
@@ -48,7 +49,7 @@ cron.schedule("0 20 * * 1-6", async () => {
         }
 
         // Kelompokkan: ambil jam_selesai terakhir per kelas
-        const jadwalTerakhirPerKelas = {};
+        const jadwalTerakhirPerKelas: Record<number, string> = {};
         for (const j of semuaJadwal) {
             if (!jadwalTerakhirPerKelas[j.kelas_id]) {
                 jadwalTerakhirPerKelas[j.kelas_id] = j.jam_selesai;
@@ -66,7 +67,7 @@ cron.schedule("0 20 * * 1-6", async () => {
                 deleted_at: null,
                 siswa: {
                     kelas_id: { in: kelasIds },
-                    status_siswa: "Active",
+                    status_siswa: StatusSiswa.Active,
                     deleted_at: null
                 }
             },
@@ -90,14 +91,14 @@ cron.schedule("0 20 * * 1-6", async () => {
         let berhasil = 0, gagal = 0;
         for (const absensi of absensiBelumTapOut) {
             try {
-                const jamSelesai = jadwalTerakhirPerKelas[absensi.siswa.kelas_id];
+                const jamSelesai = jadwalTerakhirPerKelas[absensi.siswa.kelas_id as number];
                 await prisma.absensiSiswa.update({
                     where: { id: absensi.id },
                     data: { tap_out: wibTodayAt(jamSelesai) }
                 });
                 berhasil++;
             } catch (error) {
-                console.error(`[CRON AUTO-TAP-OUT] Gagal tap-out siswa ${absensi.siswa.nama} (${absensi.siswa.id}):`, error.message);
+                console.error(`[CRON AUTO-TAP-OUT] Gagal tap-out siswa ${absensi.siswa.nama} (${absensi.siswa.id}):`, error instanceof Error ? error.message : String(error));
                 gagal++;
             }
         }
@@ -107,7 +108,7 @@ cron.schedule("0 20 * * 1-6", async () => {
             `Berhasil: ${berhasil}, Gagal: ${gagal}`
         );
     } catch (error) {
-        console.error(`[CRON AUTO-TAP-OUT] Gagal auto tap-out:`, error.message);
+        console.error(`[CRON AUTO-TAP-OUT] Gagal auto tap-out:`, error instanceof Error ? error.message : String(error));
     }
 }, {
     timezone: "Asia/Jakarta"

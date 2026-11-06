@@ -1,7 +1,8 @@
-const cron = require("node-cron");
-const { finalisasiSemuaKelasAktif } = require("../services/finalAbsensi");
-const { getTodayStrWIB } = require("../helper/dateUtils");
-const prisma = require("../config/prisma");
+import cron from "node-cron";
+import { StatusKelas } from "@prisma/client";
+import { finalisasiSemuaKelasAktif } from "../services/finalAbsensi";
+import { getTodayStrWIB } from "../helper/dateUtils";
+import prisma from "../config/prisma";
 
 // Jalankan setiap hari jam 20:05 WIB (Senin-Sabtu) — setelah auto-tap-out pukul 20:00
 cron.schedule("5 20 * * 1-6", async () => {
@@ -23,7 +24,7 @@ cron.schedule("5 20 * * 1-6", async () => {
         // Cek apakah ada kelas aktif
         const kelasAktifCount = await prisma.kelas.count({
             where: {
-                status_kelas: "Active",
+                status_kelas: StatusKelas.Active,
                 deleted_at: null,
                 tahun_ajaran_id: tahunAktif.id
             }
@@ -54,7 +55,7 @@ cron.schedule("5 20 * * 1-6", async () => {
             `Gagal: ${totalGagal}, Dilewati: ${totalDilewati}`
         );
     } catch (error) {
-        console.error(`[CRON AUTO-FINAL] Gagal finalisasi otomatis:`, error.message);
+        console.error(`[CRON AUTO-FINAL] Gagal finalisasi otomatis:`, error instanceof Error ? error.message : String(error));
     }
 }, {
     timezone: "Asia/Jakarta"

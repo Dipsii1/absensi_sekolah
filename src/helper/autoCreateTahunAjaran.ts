@@ -1,11 +1,12 @@
-const prisma = require("../config/prisma");
+import { Prisma, StatusSiswa } from "@prisma/client";
+import prisma from "../config/prisma";
 
 const KEPUTUSAN_NAIK = "Naik";
 const KEPUTUSAN_TINGGAL = "Tinggal";
 const KEPUTUSAN_LULUS = "Lulus";
 
-// Generate rentang tahun ajaran 
-const generateTahunAjaran = (date = new Date()) => {
+// Generate rentang tahun ajaran
+const generateTahunAjaran = (date: Date = new Date()) => {
     const month = date.getMonth() + 1;
     const year = date.getFullYear();
 
@@ -15,13 +16,13 @@ const generateTahunAjaran = (date = new Date()) => {
     return {
         tahun_ajaran: `${startYear}/${endYear}`,
         tanggal_mulai: new Date(startYear, 6, 1),  // 1 Juli
-        tanggal_selesai: new Date(endYear, 5, 30),   // 30 Juni
+        tanggal_selesai: new Date(endYear, 5, 30)   // 30 Juni
     };
 };
 
 // Naikkan tingkat kelas (X → XI, XI → XII).
 // XII tidak boleh naik — harusnya Lulus (ditangani di luar fungsi ini).
-const naikkanTingkat = (tingkat) => {
+const naikkanTingkat = (tingkat: string) => {
     if (/^XII/i.test(tingkat)) return tingkat;
     if (/^XI/i.test(tingkat)) return tingkat.replace(/^XI/i, "XII");
     if (/^X/i.test(tingkat)) return tingkat.replace(/^X/i, "XI");
@@ -29,7 +30,7 @@ const naikkanTingkat = (tingkat) => {
 };
 
 // Cari atau buat kelas tujuan untuk carry-over siswa yang naik/tinggal kelas. Gunakan cache untuk menghindari query berulang.
-const findOrCreateKelasTujuan = async (cache, tingkat, jurusan, tahunBaruId) => {
+const findOrCreateKelasTujuan = async (cache: Map<string, any>, tingkat: string, jurusan: string, tahunBaruId: number) => {
     const cacheKey = `${tingkat}__${jurusan}__${tahunBaruId}`;
     if (cache.has(cacheKey)) return cache.get(cacheKey);
 
@@ -53,7 +54,7 @@ const findOrCreateKelasTujuan = async (cache, tingkat, jurusan, tahunBaruId) => 
     return kelasTujuan;
 };
 
-const carryOverKelas = async (tahunLamaId, tahunBaruId) => {
+const carryOverKelas = async (tahunLamaId: number, tahunBaruId: number) => {
     const kelasLama = await prisma.kelas.findMany({
         where: {
             tahun_ajaran_id: tahunLamaId,
@@ -81,16 +82,16 @@ const carryOverKelas = async (tahunLamaId, tahunBaruId) => {
         : [];
     const keputusanMap = new Map(keputusanList.map((k) => [k.siswa_id, k.keputusan]));
 
-    const kelasTujuanCache = new Map();
-    const lulusIds = [];
+    const kelasTujuanCache = new Map<string, any>();
+    const lulusIds: string[] = [];
     let totalNaik = 0;
     let totalTinggal = 0;
 
     for (const kelas of kelasLama) {
         const isKelasAkhir = kelas.kelas.toUpperCase() === "XII";
 
-        const naikIds = [];
-        const tinggalIds = [];
+        const naikIds: string[] = [];
+        const tinggalIds: string[] = [];
         let lulusDiKelasIni = 0;
 
         for (const siswa of kelas.siswa) {
@@ -143,7 +144,7 @@ const carryOverKelas = async (tahunLamaId, tahunBaruId) => {
     if (lulusIds.length > 0) {
         await prisma.siswa.updateMany({
             where: { id: { in: lulusIds } },
-            data: { kelas_id: null, status_siswa: "Alumni", updated_at: new Date() },
+            data: { kelas_id: null, status_siswa: StatusSiswa.Alumni, updated_at: new Date() },
         });
     }
 
@@ -153,8 +154,8 @@ const carryOverKelas = async (tahunLamaId, tahunBaruId) => {
     );
 };
 
-// Auto-create tahun ajaran baru 
-const autoCreateTahunAjaran = async (date = new Date()) => {
+// Auto-create tahun ajaran baru
+const autoCreateTahunAjaran = async (date: Date = new Date()) => {
     const { tahun_ajaran, tanggal_mulai, tanggal_selesai } = generateTahunAjaran(date);
 
     // 1. Sudah ada dan aktif → skip
@@ -223,8 +224,4 @@ const autoCreateTahunAjaran = async (date = new Date()) => {
     return newTahun;
 };
 
-module.exports = {
-    generateTahunAjaran,
-    naikkanTingkat,
-    autoCreateTahunAjaran,
-};
+export { generateTahunAjaran, naikkanTingkat, autoCreateTahunAjaran };
