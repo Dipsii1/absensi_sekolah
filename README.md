@@ -4,13 +4,16 @@
 ![express 5.x](https://img.shields.io/badge/express-5.x-blue)
 ![prisma ORM](https://img.shields.io/badge/prisma-ORM-purple)
 ![postgresql](https://img.shields.io/badge/database-PostgreSQL-blue)
+![typescript](https://img.shields.io/badge/language-TypeScript-blue)
 ![jwt auth](https://img.shields.io/badge/auth-JWT-orange)
 ![bullmq](https://img.shields.io/badge/queue-BullMQ-red)
 ![redis](https://img.shields.io/badge/cache-Redis-red)
 ![license internal](https://img.shields.io/badge/license-Internal-lightgrey)
 
-Backend API untuk sistem **manajemen absensi sekolah** berbasis **Node.js + Express + Prisma**.
+Backend API untuk sistem **manajemen absensi sekolah** berbasis **Node.js + Express + TypeScript + Prisma**.
 Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikasi Telegram**, **ekspor Excel**, **cron job otomatis**, serta **role-based access control** yang terstruktur.
+
+**Status:** migrasi backend dari JavaScript ke **TypeScript (strict)** telah diselesaikan.
 
 ---
 
@@ -50,6 +53,7 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
 - **Penjadwalan Otomatis**
   - Cron 1 Juli pukul 00:00 WIB membuat tahun ajaran baru dan memproses kenaikan kelas: X → XI, XI → XII, XII → Alumni.
   - Cron job untuk auto-approve status request absensi.
+  - Cron auto tap-out dan auto finalisasi absensi.
 
 - **Observability**
   - Log setiap request menampilkan tanggal dan jam WIB (`Asia/Jakarta`), method, URL, status, serta response time.
@@ -81,82 +85,100 @@ Proyek ini dibuat modular agar mudah dikembangkan, dilengkapi dengan **notifikas
 
 ```
 absensi_sekolah/
-├── bin/                        # Entry point server (www)
+├── AGENTS.md              # Instruksi operasional AI agent
+├── app.ts                 # Konfigurasi Express (entry point)
+├── bin/
+│   ├── www                # Compiled production entry
+│   └── www.ts             # TypeScript entry point (dev)
 ├── prisma/
-│   └── schema.prisma           # Schema database (Prisma)
+│   └── schema.prisma      # Schema database (Prisma)
+├── prisma.config.ts       # Konfigurasi Prisma
 ├── public/
-│   └── stylesheets/            # Static CSS
+│   └── stylesheets/       # Static CSS
 ├── src/
-│   ├── controllers/            # Logic handler tiap resource
-│   │   ├── authControllers.js
-│   │   ├── siswaControllers.js
-│   │   ├── guruControllers.js
-│   │   ├── kelasControllers.js
-│   │   ├── tahunControllers.js
-│   │   ├── jadwalControllers.js
-│   │   ├── mapelControllers.js
-│   │   ├── orangtuaControllers.js
-│   │   ├── usersControllers.js
-│   │   ├── roleControllers.js
-│   │   ├── rfidControllers.js
-│   │   ├── absensiSiswaControllers.js
-│   │   ├── detailAbsensiControllers.js
-│   │   ├── finalAbsensiControllers.js
-│   │   ├── rekapControllers.js
-│   │   ├── exportControllers.js
-│   │   ├── statusRequestControllers.js
-│   │   └── kenaikanKelasControllers.js
-│   ├── middleware/              # Middleware global
-│   │   ├── auth.js             # verifyToken, checkRole, requirePokja
-│   │   └── upload.js           # Multer upload handler
-│   ├── routes/                 # Routing modular
-│   │   ├── index.js
-│   │   ├── authRoutes.js
-│   │   ├── siswaRoutes.js
-│   │   ├── guruRoutes.js
-│   │   ├── kelasRoutes.js
-│   │   ├── tahunRoutes.js
-│   │   ├── jadwalRoutes.js
-│   │   ├── mapelRoutes.js
-│   │   ├── orangTuaRoutes.js
-│   │   ├── usersRoutes.js
-│   │   ├── roleRoutes.js
-│   │   ├── rfidRoutes.js
-│   │   ├── absensiSiswaRoutes.js
-│   │   ├── detailAbsensiRoutes.js
-│   │   ├── finalAbsensiRoutes.js
-│   │   ├── rekapRoutes.js
-│   │   ├── exportRoutes.js
-│   │   ├── statusRequestRoutes.js
-│   │   └── kenaikanKelasRoutes.js
-│   ├── services/               # Service layer
-│   │   ├── telegramServices.js
-│   │   └── finalAbsensi.js
-│   ├── cron/                   # Cron job scheduler
-│   │   ├── tahunAjaran.js
-│   │   └── autoApproveStatus.js
-│   ├── queues/                  # BullMQ queue definitions
-│   │   ├── tapInQueue.js
-│   │   └── tapOutQueue.js
-│   ├── workers/                 # BullMQ background workers
-│   │   ├── tapInWorker.js
-│   │   └── tapOutWorker.js
-│   ├── helper/                  # Fungsi bantu (utils)
-│   │   ├── autoCreateTahunAjaran.js
-│   │   ├── dateUtils.js
-│   │   ├── daysUtils.js
-│   │   ├── helperFinalAbsensi.js
-│   │   ├── reqStatusAbsensi.js
-│   │   └── indexUtils.js
-│   └── config/                  # Konfigurasi (Prisma client, Redis, dll)
-│       ├── prisma.js
-│       └── redis.js
-├── views/                      # Template Pug
-├── app.js                      # Konfigurasi Express
-├── prisma.config.ts
-├── .env                        # Konfigurasi environment (dibuat manual, tidak di-commit)
+│   ├── config/            # Konfigurasi (Prisma client, Redis)
+│   │   ├── prisma.ts
+│   │   └── redis.ts
+│   ├── controllers/       # Logic handler tiap resource
+│   │   ├── absensiSiswaControllers.ts
+│   │   ├── authControllers.ts
+│   │   ├── detailAbsensiControllers.ts
+│   │   ├── exportControllers.ts
+│   │   ├── finalAbsensiControllers.ts
+│   │   ├── guruControllers.ts
+│   │   ├── jadwalControllers.ts
+│   │   ├── kelasControllers.ts
+│   │   ├── kenaikanKelasControllers.ts
+│   │   ├── mapelControllers.ts
+│   │   ├── moodleControllers.ts
+│   │   ├── orangtuaControllers.ts
+│   │   ├── rekapControllers.ts
+│   │   ├── rfidControllers.ts
+│   │   ├── roleControllers.ts
+│   │   ├── siswaControllers.ts
+│   │   ├── statusRequestControllers.ts
+│   │   └── tahunControllers.ts
+│   │   └── usersControllers.ts
+│   ├── cron/              # Cron job scheduler
+│   │   ├── auto-tapOut.ts
+│   │   ├── autoApproveStatus.ts
+│   │   ├── autoFinalAbsensi.ts
+│   │   └── tahunAjaran.ts
+│   ├── helper/            # Fungsi bantu (utils)
+│   │   ├── autoCreateTahunAjaran.ts
+│   │   ├── dateUtils.ts
+│   │   ├── daysUtils.ts
+│   │   ├── helperFinalAbsensi.ts
+│   │   ├── indexUtils.ts
+│   │   ├── queueEvents.ts
+│   │   ├── reqStatusAbsensi.ts
+│   │   └── roleCache.ts
+│   ├── middleware/        # Middleware global
+│   │   ├── auth.ts        # verifyToken, checkRole, requirePokja
+│   │   └── upload.ts      # Multer upload handler
+│   ├── queues/            # BullMQ queue definitions
+│   │   ├── tapInQueue.ts
+│   │   └── tapOutQueue.ts
+│   ├── routes/            # Routing modular
+│   │   ├── index.ts
+│   │   ├── absensiSiswaRoutes.ts
+│   │   ├── authRoutes.ts
+│   │   ├── detailAbsensiRoutes.ts
+│   │   ├── exportRoutes.ts
+│   │   ├── finalAbsensiRoutes.ts
+│   │   ├── guruRoutes.ts
+│   │   ├── jadwalRoutes.ts
+│   │   ├── kelasRoutes.ts
+│   │   ├── kenaikanKelasRoutes.ts
+│   │   ├── mapelRoutes.ts
+│   │   ├── moodleRoutes.ts
+│   │   ├── orangTuaRoutes.ts
+│   │   ├── rekapRoutes.ts
+│   │   ├── rfidRoutes.ts
+│   │   ├── roleRoutes.ts
+│   │   ├── siswaRoutes.ts
+│   │   ├── statusRequestRoutes.ts
+│   │   ├── tahunRoutes.ts
+│   │   └── usersRoutes.ts
+│   ├── services/          # Service layer
+│   │   ├── finalAbsensi.ts
+│   │   └── telegramServices.ts
+│   ├── types/             # Tipe TypeScript global
+│   │   └── express.d.ts
+│   └── workers/           # BullMQ background workers
+│       ├── tapInWorker.ts
+│       └── tapOutWorker.ts
+├── views/                 # Template Pug
+├── .env                   # Konfigurasi environment (dibuat manual, tidak di-commit)
 ├── .gitignore
-└── package.json
+├── package.json
+├── tsconfig.json
+└── docs/
+    ├── architecture.md
+    ├── contributing.md
+    ├── database.md
+    ├── documentation.md
+    └── rules.md
 ```
 
 ---
@@ -167,7 +189,7 @@ absensi_sekolah/
 
 ```bash
 git clone https://github.com/Dipsii1/absensi_sekolah.git
-cd absensi_sekolah
+cd absensi_sekolah/backend
 ```
 
 ### 2. Install Dependencies
@@ -188,6 +210,7 @@ TELEGRAM_GROUP_ID="your_telegram_group_id"
 PORT=3000
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
+TZ=Asia/Jakarta
 
 YSBO_API_BASE_URL="https://ysbmo.example.com/api/v1"
 URL_FRONTEND="http://localhost:4321"
@@ -220,7 +243,7 @@ docker run -p 6379:6379 redis:7
 ### 6. Jalankan Aplikasi
 
 ```bash
-# Development (auto-reload)
+# Development (auto-reload via tsx)
 npm run dev
 
 # Production
@@ -236,6 +259,7 @@ Aplikasi berjalan di → `http://localhost:3000`
 | Kategori | Teknologi |
 |---|---|
 | Runtime | Node.js ≥18 |
+| Language | TypeScript (strict) |
 | Framework | Express.js v5 |
 | ORM | Prisma v5 |
 | Database | PostgreSQL |
@@ -247,6 +271,7 @@ Aplikasi berjalan di → `http://localhost:3000`
 | HTTP Client | Axios |
 | Queue | BullMQ |
 | Cache/Message Broker | Redis |
+| Dev runner | tsx |
 
 ---
 
@@ -254,10 +279,10 @@ Aplikasi berjalan di → `http://localhost:3000`
 
 | Script | Perintah | Keterangan |
 |---|---|---|
-| Start | `npm start` | Jalankan server production |
-| Dev | `npm run dev` | Jalankan dengan tsx watch |
+| Start | `npm start` | Jalankan server production (`node dist/bin/www.js`) |
+| Dev | `npm run dev` | Jalankan dengan `tsx watch bin/www.ts` |
 | Build | `npm run build` | Compile TypeScript + prisma generate |
-| Typecheck | `npm run typecheck` | Cek tipe tanpa compile |
+| Typecheck | `npm run typecheck` | Cek tipe tanpa compile (`tsc --noEmit`) |
 | Migrate | `npx prisma migrate dev` | Jalankan migrasi DB |
 | Studio | `npx prisma studio` | Buka Prisma Studio (GUI) |
 
@@ -536,7 +561,7 @@ Aplikasi berjalan di → `http://localhost:3000`
 | `REDIS_HOST` | String | Host Redis | `127.0.0.1` |
 | `REDIS_PORT` | Number | Port Redis | `6379` |
 | `NODE_ENV` | String | Environment (development/production) | `development` |
-| `TZ` | String | Timezone server (di-set otomatis ke `Asia/Jakarta` di `app.js:1`) | `Asia/Jakarta` |
+| `TZ` | String | Timezone server (`Asia/Jakarta`) | `Asia/Jakarta` |
 | `URL_FRONTEND` | String | URL frontend untuk CORS origin whitelist | `http://localhost:4321` |
 | `MOODLE_BASE_URL` | String | Base URL Moodle LMS (untuk SSO link `/api/v1/moodle/lms-url`) | `https://moodle.example.com` |
 | `YSBO_API_BASE_URL` | String | Base URL API YBSMO untuk autentikasi staf/guru | `https://ysbmo.example.com/api/v1` |
@@ -575,6 +600,10 @@ Aplikasi berjalan di → `http://localhost:3000`
 - Cek kolom headers
 - Lihat log upload di server untuk detail error
 
+### TypeScript Typecheck Gagal
+- Jalankan `npm run typecheck` (`tsc --noEmit`) untuk melihat error tipe
+- Pastikan tidak ada `any` atau `@ts-ignore` (larutan menurut AGENTS.md)
+
 ---
 
 ## 📦 Deployment
@@ -600,7 +629,7 @@ npm start
 npm install -g pm2
 
 # Start application
-pm2 start app.js --name "absensi-sekolah"
+pm2 start dist/bin/www.js --name "absensi-sekolah"
 
 # View logs
 pm2 logs absensi-sekolah
@@ -623,6 +652,7 @@ Repository ini dikerjakan oleh tim internal. Alur kerja:
 - Test fitur baru sebelum PR
 - Update dokumentasi jika diperlukan
 - Satu PR untuk satu fitur/bugfix
+- Pastikan `npm run typecheck` lolos sebelum PR
 
 ---
 
@@ -641,43 +671,38 @@ Untuk pertanyaan, bug report, atau saran, hubungi tim pengembang atau buat issue
 ## 📝 Changelog
 
 ### v0.0.5 (latest)
+- ✅ **Migrasi ke TypeScript (strict)**: seluruh source code di `src/` dikonversi dari `.js` ke `.ts`; `tsconfig.json` strict diaktifkan.
+- ✅ **Entry point TypeScript**: `bin/www.ts` (dev via `tsx`) dan `app.ts` menggantikan `bin/www` serta `app.js`.
+- ✅ **Scripts diperbarui**: `dev` pakai `tsx watch`, `build` pakai `tsc`, `typecheck` pakai `tsc --noEmit`.
+- ✅ **Dokumentasi README diperbarui**: struktur direktori, scripts, dan changelog disesuaikan dengan codebase TypeScript.
 - ✅ **Endpoint dashboard total siswa**: tambah `GET /siswa/count` untuk mengambil jumlah siswa dengan `deleted_at = null` tanpa memuat daftar atau relasi siswa.
 - ✅ **Redis cache total siswa**: key `dashboard:stats:total_siswa` disimpan selama 300 detik; respons memuat `data.total`, `data.lastUpdated`, dan flag `cached`.
-- ✅ **Invalidasi cache otomatis**: cache total siswa dihapus setelah `createSiswa`, `updateSiswa`, `deleteSiswa`, dan `importSiswa` berhasil, sehingga request berikutnya menghitung data terkini.
-- ✅ **Index query siswa aktif**: model Prisma `Siswa` mendapat index gabungan `@@index([deleted_at, created_at])` untuk query daftar siswa aktif yang memakai urutan `created_at`.
+- ✅ **Invalidasi cache otomatis**: cache total siswa dihapus setelah `createSiswa`, `updateSiswa`, `deleteSiswa`, dan `importSiswa` berhasil.
+- ✅ **Index query siswa aktif**: model Prisma `Siswa` mendapat index gabungan `@@index([deleted_at, created_at])`.
 
 ### v0.0.4
-- ✅ **Request log WIB**: format log Morgan diubah ke `YYYY-MM-DD HH:mm:ss WIB` menggunakan `Intl.DateTimeFormat` timezone `Asia/Jakarta` — tanpa dependency tambahan (`app.js`).
-- ✅ **Import jadwal pakai `KODE_MAPEL` + `ID_GURU`**: kolom Excel `NAMA_MAPEL` → `KODE_MAPEL`, `NAMA_GURU` → `ID_GURU`; lookup berubah ke `kode_mapel` (unik) dan `id` guru sehingga tidak ambiguitas nama.
-- ✅ **`kode_mapel` pada model `MataPelajaran`**: field baru `kode_mapel` (unique, nullable) ditambahkan ke schema & API; `POST /mata-pelajaran` menerima `kode_mapel`; konflik kode dicek sebelum create/update.
-- 🐛 **Auto-restore mapel terhapus**: `createMapel` mendeteksi mapel soft-deleted dengan nama/kode sama lalu me-restore-nya alih-alih error duplicate.
+- ✅ **Request log WIB**: format log Morgan diubah ke `YYYY-MM-DD HH:mm:ss WIB` menggunakan `Intl.DateTimeFormat` timezone `Asia/Jakarta`.
+- ✅ **Import jadwal pakai `KODE_MAPEL` + `ID_GURU`**: kolom Excel `NAMA_MAPEL` → `KODE_MAPEL`, `NAMA_GURU` → `ID_GURU`.
+- ✅ **`kode_mapel` pada model `MataPelajaran`**: field baru `kode_mapel` (unique, nullable) ditambahkan ke schema & API.
+- 🐛 **Auto-restore mapel terhapus**: `createMapel` mendeteksi mapel soft-deleted dengan nama/kode sama lalu me-restore-nya.
 - 🐛 **Hapus RFID aktif otomatis saat siswa dihapus**: `deletesSiswa` kini set `is_active = false` pada semua RFID aktif milik siswa sebelum hapus.
-- 🐛 **Siswa: `nipd`/`nik` kosong tidak error**: field opsional dikirim string kosong `""` dikonversi ke `null` agar tidak melanggar unique constraint.
+- 🐛 **Siswa: `nipd`/`nik` kosong tidak error**: field opsional dikirim string kosong `""` dikonversi ke `null`.
 
 ### v0.0.3
 - ✅ **Fitur Kenaikan Kelas**: atur status naik/tinggal/lulus per siswa per tahun ajaran.
-  - Endpoint `GET /kenaikan-kelas/preview` & `POST /kenaikan-kelas/submit` (role ADMIN/SUPER_ADMIN).
-  - Schema baru: enum `KeputusanKenaikan` (Naik/Tinggal/Lulus), model `KenaikanKelas` dengan unique constraint `[siswa_id, tahun_ajaran_id]`.
-  - `autoCreateTahunAjaran` rewrite: carry-over kelas menghormati keputusan per siswa; kelas XII diproses (default Lulus) bukan dilewati.
-  - Cron `tahunAjaran` sekarang di-load di `app.js` (sebelumnya tidak ter-load → tidak pernah berjalan).
-  - `GET /tahun-ajaran` tidak lagi memicu `autoCreateTahunAjaran()` (side-effect dipindah ke cron).
-  - `createTahunAjaran` kini non-aktifkan tahun aktif lain sebelum create (mencegah multiple active).
 - 🐛 **Bugfix**: regex `naikkanTingkat` — "XII" match `/^XI/i` menghasilkan "XIII"; sekarang XII dikembalikan apa adanya.
-- 🐛 **Bugfix**: casing Prisma Client (`prisma.Tahun/Kelas/Siswa` → `prisma.tahun/kelas/siswa`) di semua file.
+- 🐛 **Bugfix**: casing Prisma Client (`prisma.Tahun/Kelas/Siswa` → `prisma.tahun/kelas/siswa`).
 
 ### v0.0.2
-- ✅ **Skema `jadwal`**: kolom `jam_mulai` / `jam_selesai` dikonversi dari `TIME` ke `VARCHAR(5)` bertipe string `"HH:MM"` — lebih mudah dipelihara dan konsisten dengan lapisan API (validasi `HH:MM`).
-  - Range query jadwal aktif (`getActiveJadwalGuru`) & overlap deteksi bentrok jadwal kini pakai komparasi string (zero-padded → leksikografi = kronologi).
-  - Helper `formatJam()` terima input string; helper `nowAsDbTime` (mati) diganti `nowWibTimeString()`.
-- 🐛 **Bugfix `auto-tapOut`**: filter `jadwal.deleted_at` dihapus (kolom tak ada di model → sebelumnya bikin auto tap-out selalu gagal diam‑diam).
-- 🐛 **Bugfix cron**: `autoFinalAbsensi` digerakkan `20:05` (dulu `20:00` bentrokan dengan `auto-tapOut` pukul `20:00`), agar finalisasi berjalan setelah tap‑out terisi.
-- 🧹 Seeder & test di‑update ke string `HH:MM`.
+- ✅ **Skema `jadwal`**: kolom `jam_mulai` / `jam_selesai` dikonversi dari `TIME` ke `VARCHAR(5)` bertipe string `"HH:MM"`.
+- 🐛 **Bugfix `auto-tapOut`**: filter `jadwal.deleted_at` dihapus.
+- 🐛 **Bugfix cron**: `autoFinalAbsensi` digerakkan `20:05` (dulu `20:00` bentrokan dengan `auto-tapOut`).
 
 ### v0.0.1
 - ✅ Login siswa via Moodle (`/auth/moodle-login`)
 - ✅ Endpoint profil siswa di `/auth/me` (relasi `siswa`, `kelas`, `kelas.walas`, `rfid`)
 - ✅ Filter `siswa_id` di `/absensi-siswa/laporan/harian`
-- ✅ Endpoint baru `/absensi-siswa/rekap-saya` khusus role SISWA (membaca dari `FinalAbsensi` berdasarkan JWT)
+- ✅ Endpoint baru `/absensi-siswa/rekap-saya` khusus role SISWA
 
 ### v0.0.0
 - ✅ Core features: Auth, Users, Siswa, Guru, Kelas
@@ -697,5 +722,5 @@ Untuk pertanyaan, bug report, atau saran, hubungi tim pengembang atau buat issue
 
 ---
 
-**Last Updated:** 12 Oktober 2026  
+**Last Updated:** 09 November 2026  
 **Status:** Active Development 🚀
