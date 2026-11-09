@@ -10,7 +10,7 @@
 
 */
 -- CreateEnum
-CREATE TYPE "Hari" AS ENUM ('SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU');
+CREATE TYPE "Hari" AS ENUM ('Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu');
 
 -- DropIndex
 DROP INDEX "jadwal_guru_id_tanggal_jadwal_idx";
